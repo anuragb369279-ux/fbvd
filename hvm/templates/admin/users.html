@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users - {{ panel_name }}{% endblock %}
+
+{% block header_title %}User Management{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('admin_dashboard') }}" class="breadcrumb-item">Admin</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">Users</span>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Cyber Admin Users Styles */
+    .users-management-container {
+        animation: fadeIn 0.5s ease-out;
+    }
+    
+    .modern-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0 0.75rem;
+    }
+    
+    .modern-table th {
+        padding: 1rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--text-muted);
+        border-bottom: 1px solid var(--border-color);
+    }
+    
+    .modern-table tr td {
+        padding: 1.25rem 1rem;
+        background: rgba(255, 255, 255, 0.02);
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .modern-table tr td:first-child {
+        border-left: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px 0 0 12px;
+    }
+    
+    .modern-table tr td:last-child {
+        border-right: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 0 12px 12px 0;
+    }
+    
+    .modern-table tr:hover td {
+        background: rgba(255, 255, 255, 0.04);
+        border-color: rgba(0, 242, 255, 0.2);
+    }
+    
+    .role-badge {
+        font-size: 0.65rem;
+        font-weight: 900;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+    }
+    
+    .role-admin { background: rgba(245, 158, 11, 0.1); color: var(--accent-warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+    .role-main-admin { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); border: 1px solid rgba(239, 68, 68, 0.2); }
+    .role-user { background: rgba(16, 185, 129, 0.1); color: var(--accent-success); border: 1px solid rgba(16, 185, 129, 0.2); }
+    
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        backdrop-filter: blur(10px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 1rem;
+    }
+    
+    .modal-overlay.active {
+        display: flex;
+    }
+    
+    .modal-content {
+        background: var(--card-bg);
+        border: 1px solid var(--accent-primary);
+        border-radius: 1rem;
+        padding: 2rem;
+        max-width: 500px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        box-shadow: 0 0 50px rgba(0, 242, 255, 0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="users-management-container">
+    <!-- Header Actions -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; flex-wrap: wrap; gap: 1.5rem;">
+        <div>
+            <h1 style="font-size: 2rem; font-weight: 900; margin: 0;">Identity Core</h1>
+            <p style="color: var(--text-muted); margin: 0;">System-wide user and permission management</p>
+        </div>
+        <button class="btn btn-glow-primary" onclick="showCreateUserModal()">
+            <i class="fas fa-user-plus"></i> AUTHORIZE USER
+        </button>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-4" style="margin-bottom: 2rem;">
+        <div class="stat-card-cyber">
+            <div class="stat-glow"></div>
+            <span class="stat-label-cyber">Total Population</span>
+            <div class="stat-main">
+                <div class="stat-value-cyber">{{ users|length }}</div>
+                <div class="stat-unit">USERS</div>
+            </div>
+        </div>
+        
+        <div class="stat-card-cyber">
+            <div class="stat-glow" style="background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%);"></div>
+            <span class="stat-label-cyber">Commanders</span>
+            <div class="stat-main">
+                <div class="stat-value-cyber">{{ users|selectattr('is_admin', 'equalto', 1)|list|length }}</div>
+                <div class="stat-unit">ADMINS</div>
+            </div>
+        </div>
+        
+        <div class="stat-card-cyber">
+            <div class="stat-glow" style="background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%);"></div>
+            <span class="stat-label-cyber">Neural Units</span>
+            <div class="stat-main">
+                <div class="stat-value-cyber" id="totalVPSCount">
+                    {% set total_vps = namespace(count=0) %}
+                    {% for user in users %}
+                        {% set total_vps.count = total_vps.count + (user.vps_count or 0) %}
+                    {% endfor %}
+                    {{ total_vps.count }}
+                </div>
+                <div class="stat-unit">VPS</div>
+            </div>
+        </div>
+        
+        <div class="stat-card-cyber">
+            <div class="stat-glow" style="background: radial-gradient(circle, rgba(239, 68, 68, 0.1) 0%, transparent 70%);"></div>
+            <span class="stat-label-cyber">Critical Pulse</span>
+            <div class="stat-main">
+                <div class="stat-value-cyber" id="totalExpiringCount">0</div>
+                <div class="stat-unit">EXPIRING</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search -->
+    <div class="cyber-card" style="margin-bottom: 2rem; background: rgba(0, 0, 0, 0.2);">
+        <form method="GET" action="{{ url_for('admin_users') }}">
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <input type="text" name="search" class="form-control" placeholder="Search identity or matrix address..." value="{{ search_query or '' }}">
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-search"></i> SCAN MATRIX
+                </button>
+                {% if search_query %}
+                <a href="{{ url_for('admin_users') }}" class="btn btn-outline">
+                    <i class="fas fa-times"></i> RESET
+                </a>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+
+    <!-- Users Table -->
+    <div class="table-responsive">
+        <table class="modern-table">
+            <thead>
+                <tr>
+                    <th>USER IDENTITY</th>
+                    <th>CLEARANCE</th>
+                    <th>UNITS</th>
+                    <th>EXPIRING</th>
+                    <th>PORT QUOTA</th>
+                    <th>LAST SYNC</th>
+                    <th style="text-align: right;">ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="user-avatar" style="width: 40px; height: 40px; background: var(--bg-tertiary);">
+                                {% if user.profile_picture %}
+                                <img src="{{ user.profile_picture }}" alt="{{ user.username }}" style="width: 100%; height: 100%; border-radius: 50%;">
+                                {% else %}
+                                <span style="font-weight: 900;">{{ user.username[:1].upper() }}</span>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <div style="font-weight: 800; color: var(--text-primary);">{{ user.username }}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-muted); font-family: var(--font-mono);">{{ user.email }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% if user.is_main_admin %}
+                        <span class="role-badge role-main-admin">ROOT</span>
+                        {% elif user.is_admin %}
+                        <span class="role-badge role-admin">COMMANDER</span>
+                        {% else %}
+                        <span class="role-badge role-user">OPERATOR</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge" style="background: rgba(0, 242, 255, 0.05); border: 1px solid rgba(0, 242, 255, 0.1);">{{ user.vps_count or 0 }}</span>
+                    </td>
+                    <td>
+                        <div class="expiring-vps-cell" data-user-id="{{ user.id }}">
+                            <span class="badge badge-secondary" style="font-size: 0.65rem; opacity: 0.5;">-</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="width: 100px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.65rem; margin-bottom: 0.25rem;">
+                                <span>USED</span>
+                                <span>{{ user.used_ports or 0 }} / {{ user.port_quota or 0 }}</span>
+                            </div>
+                            <div class="progress" style="height: 4px; background: rgba(255, 255, 255, 0.05);">
+                                {% set port_pct = (user.used_ports / user.port_quota * 100)|int if user.port_quota > 0 else 0 %}
+                                <div class="progress-bar" style="width: {{ port_pct }}%; background: var(--accent-primary);"></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="font-size: 0.8rem; color: var(--text-muted);">{{ user.last_active|relative_time if user.last_active else 'NEVER' }}</td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                            <a href="{{ url_for('admin_user_detail', user_id=user.id) }}" class="btn-cyber btn-cyber-outline" style="padding: 0.5rem; width: 32px; height: 32px;" title="VIEW">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <a href="{{ url_for('admin_user_edit', user_id=user.id) }}" class="btn-cyber btn-cyber-outline" style="padding: 0.5rem; width: 32px; height: 32px;" title="EDIT">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            {% if not user.is_main_admin %}
+                            <button class="btn-cyber btn-cyber-outline" onclick="deleteUser({{ user.id }}, '{{ user.username| e }}')" style="padding: 0.5rem; width: 32px; height: 32px; color: var(--accent-danger); border-color: rgba(255, 0, 85, 0.2);" title="TERMINATE">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 2rem; flex-wrap: wrap;">
+        {% if page > 1 %}
+        <a href="?page={{ page-1 }}{% if search_query %}&search={{ search_query }}{% endif %}" class="btn btn-sm btn-outline">PREV</a>
+        {% endif %}
+
+        {% for p in range(1, total_pages + 1) %}
+            {% if p == page %}
+            <span class="btn btn-sm btn-primary">{{ p }}</span>
+            {% elif p <= 3 or p >= total_pages - 2 or (p >= page - 2 and p <= page + 2) %}
+            <a href="?page={{ p }}{% if search_query %}&search={{ search_query }}{% endif %}" class="btn btn-sm btn-outline">{{ p }}</a>
+            {% endif %}
+        {% endfor %}
+
+        {% if page < total_pages %}
+        <a href="?page={{ page+1 }}{% if search_query %}&search={{ search_query }}{% endif %}" class="btn btn-sm btn-outline">NEXT</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="createUserModal">
+    <div class="modal-content">
+        <h3 style="font-weight: 900; margin-bottom: 1.5rem; color: var(--accent-primary);">AUTHORIZE NEW IDENTITY</h3>
+        <form id="createUserForm">
+            <div class="form-group">
+                <label class="form-label">IDENTITY NAME</label>
+                <input type="text" class="form-control" id="newUsername" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">MATRIX ADDRESS (EMAIL)</label>
+                <input type="email" class="form-control" id="newEmail" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">ACCESS KEY (PASSWORD)</label>
+                <input type="password" class="form-control" id="newPassword" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">CLEARANCE LEVEL</label>
+                <select class="form-control" id="newRole">
+                    <option value="user">OPERATOR</option>
+                    <option value="admin">COMMANDER</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">PORT QUOTA</label>
+                <input type="number" class="form-control" id="newPortQuota" value="5">
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button type="button" class="btn btn-outline" style="flex: 1;" onclick="hideModal('createUserModal')">CANCEL</button>
+                <button type="button" class="btn btn-primary" style="flex: 1;" onclick="createUser()">AUTHORIZE</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadAllExpiringVPS();
+});
+
+async function loadAllExpiringVPS() {
+    try {
+        const response = await fetch('/admin/vps/expiring?days=30');
+        const data = await response.json();
+        if (data.success) {
+            const expiringVPS = data.data;
+            const userExpiringMap = {};
+            expiringVPS.forEach(vps => {
+                const userId = vps.user_id;
+                if (!userExpiringMap[userId]) userExpiringMap[userId] = { total: 0, critical: 0, warning: 0, vps: [] };
+                userExpiringMap[userId].total++;
+                userExpiringMap[userId].vps.push(vps);
+                if (vps.is_expired || vps.days_remaining <= 1) userExpiringMap[userId].critical++;
+                else if (vps.days_remaining <= 7) userExpiringMap[userId].warning++;
+            });
+            
+            document.querySelectorAll('.expiring-vps-cell').forEach(cell => {
+                const userId = parseInt(cell.dataset.userId);
+                const userExpiring = userExpiringMap[userId];
+                if (userExpiring && userExpiring.total > 0) {
+                    let badgeClass = 'badge-info';
+                    if (userExpiring.critical > 0) badgeClass = 'badge-danger';
+                    else if (userExpiring.warning > 0) badgeClass = 'badge-warning';
+                    cell.innerHTML = `<button class="badge ${badgeClass}" onclick="showUserExpiringVPS(${userId}, event)" style="cursor: pointer; border: none; padding: 0.35rem 0.75rem;">${userExpiring.total}</button>`;
+                    cell.dataset.expiringVps = JSON.stringify(userExpiring.vps);
+                } else {
+                    cell.innerHTML = '<span class="badge badge-success" style="opacity: 0.3;"><i class="fas fa-check"></i></span>';
+                }
+            });
+            document.getElementById('totalExpiringCount').textContent = expiringVPS.length;
+        }
+    } catch (error) { console.error(error); }
+}
+
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.add('active');
+}
+
+function hideModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+}
+
+function showCreateUserModal() {
+    document.getElementById('createUserForm').reset();
+    showModal('createUserModal');
+}
+
+async function createUser() {
+    const username = document.getElementById('newUsername').value.trim();
+    const email = document.getElementById('newEmail').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const role = document.getElementById('newRole').value;
+    const portQuota = document.getElementById('newPortQuota').value;
+
+    if (!username || !email || !password) return showToast('Fill all fields', 'warning');
+
+    showLoading();
+    try {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('email', email);
+        formData.append('password', password);
+        formData.append('is_admin', role === 'admin');
+        formData.append('port_quota', portQuota);
+
+        const res = await fetch('/admin/user/create', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Identity authorized', 'success');
+            location.reload();
+        } else showToast(data.error, 'danger');
+    } catch (err) { showToast('Matrix error', 'danger'); }
+    finally { hideLoading(); }
+}
+
+function deleteUser(userId, username) {
+    if (!confirm(`Terminate identity "${username}"?`)) return;
+    showLoading();
+    fetch(`/admin/users/${userId}/delete`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) location.reload();
+            else showToast(data.error, 'danger');
+        })
+        .finally(hideLoading);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,863 @@
+/* ============================================================
+   PVM Panel - Convoy/Proxmox Inspired Theme
+   Clean, professional dark UI
+   ============================================================ */
+
+/* ---- Design Tokens ---- */
+:root, :root[data-theme="dark"] {
+    /* Backgrounds - Convoy uses very dark near-black with subtle blue tint */
+    --bg-primary:    #0d0f14;
+    --bg-secondary:  #13161e;
+    --bg-tertiary:   #1a1d27;
+    --bg-elevated:   #1e2130;
+    --bg-inset:      #0a0c10;
+
+    /* Text */
+    --text-primary:   #e8eaf0;
+    --text-secondary: #8b92a8;
+    --text-muted:     #555d75;
+
+    /* Borders */
+    --border-color:  rgba(255,255,255,0.07);
+    --border-light:  rgba(255,255,255,0.12);
+
+    /* Accents - Convoy uses blue/indigo, Proxmox uses orange */
+    --accent-primary:       #6366f1;   /* indigo */
+    --accent-primary-hover: #4f52d4;
+    --accent-success:       #22c55e;
+    --accent-success-hover: #16a34a;
+    --accent-warning:       #f59e0b;
+    --accent-warning-hover: #d97706;
+    --accent-danger:        #ef4444;
+    --accent-danger-hover:  #dc2626;
+    --accent-info:          #3b82f6;
+
+    /* Cards */
+    --card-bg:     #13161e;
+    --card-border: rgba(255,255,255,0.07);
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+
+    /* Glass */
+    --glass-bg:     rgba(19,22,30,0.95);
+    --glass-border: rgba(255,255,255,0.07);
+
+    /* Inputs */
+    --input-bg:          #1a1d27;
+    --input-border:      rgba(255,255,255,0.1);
+    --input-focus:       #6366f1;
+    --input-placeholder: #555d75;
+
+    /* Hover */
+    --hover-bg:  rgba(99,102,241,0.08);
+    --active-bg: rgba(99,102,241,0.15);
+
+    /* Layout */
+    --sidebar-width:    240px;
+    --header-height:    60px;
+    --border-radius:    8px;
+    --border-radius-sm: 6px;
+    --border-radius-lg: 12px;
+
+    /* Fonts */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+
+    /* Remove neon effects */
+    --neon-shadow:    none;
+    --neon-shadow-lg: none;
+}
+
+/* ---- Reset neon/glow effects ---- */
+.glow-orb, .glow-orb-1, .glow-orb-2, .glow-orb-3 { display: none !important; }
+.bg-video { display: none !important; }
+.floating { animation: none !important; }
+.glass-card { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+
+/* ---- Body & Layout ---- */
+body {
+    background-color: var(--bg-primary) !important;
+    font-family: var(--font-sans) !important;
+}
+
+/* ---- Sidebar - Convoy style: narrow, clean ---- */
+.sidebar {
+    width: var(--sidebar-width) !important;
+    background: var(--bg-secondary) !important;
+    border-right: 1px solid var(--border-color) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+}
+
+.sidebar-header {
+    height: var(--header-height) !important;
+    padding: 0 1rem !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+.sidebar-header .logo {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.02em !important;
+    color: var(--text-primary) !important;
+    gap: 0.6rem !important;
+}
+
+.sidebar-header .logo img {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 6px !important;
+}
+
+.nav-section-title {
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    color: var(--text-muted) !important;
+    padding: 0 0.75rem !important;
+    margin-bottom: 0.25rem !important;
+    margin-top: 0.25rem !important;
+}
+
+.nav-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.6rem !important;
+    padding: 0.5rem 0.75rem !important;
+    margin: 1px 0.5rem !important;
+    border-radius: var(--border-radius-sm) !important;
+    color: var(--text-secondary) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    transition: all 0.15s ease !important;
+    border: none !important;
+    min-height: 36px !important;
+    transform: none !important;
+}
+
+.nav-item:hover {
+    background: var(--hover-bg) !important;
+    color: var(--text-primary) !important;
+    transform: none !important;
+    border-color: transparent !important;
+}
+
+.nav-item.active {
+    background: var(--active-bg) !important;
+    color: var(--accent-primary) !important;
+    border-left: none !important;
+    box-shadow: none !important;
+}
+
+.nav-item i {
+    width: 16px !important;
+    font-size: 0.875rem !important;
+    opacity: 0.8 !important;
+}
+
+.nav-item.active i { opacity: 1 !important; }
+
+/* ---- Header ---- */
+.header {
+    height: var(--header-height) !important;
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: none !important;
+    padding: 0 1.25rem !important;
+}
+
+.header-title {
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    color: var(--text-secondary) !important;
+}
+
+/* ---- Main content ---- */
+.main-content {
+    margin-left: var(--sidebar-width) !important;
+    background: var(--bg-primary) !important;
+}
+
+.content {
+    padding: 1.5rem !important;
+}
+
+/* ---- Cards - Convoy style: flat, bordered ---- */
+.card, .glass-card {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--card-border) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--card-shadow) !important;
+    padding: 1.25rem !important;
+}
+
+.card:hover, .glass-card:hover {
+    transform: none !important;
+    box-shadow: var(--card-shadow) !important;
+    border-color: rgba(255,255,255,0.12) !important;
+}
+
+.card-title {
+    font-size: 0.875rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+}
+
+.card-title i { color: var(--accent-primary) !important; }
+
+/* ---- Stat cards ---- */
+.stat-card {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--card-border) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: var(--card-shadow) !important;
+    transition: border-color 0.15s !important;
+}
+
+.stat-card:hover {
+    transform: none !important;
+    border-color: rgba(255,255,255,0.15) !important;
+}
+
+/* ---- Buttons - Convoy style: clean, no uppercase ---- */
+.btn {
+    padding: 0.5rem 1rem !important;
+    border-radius: var(--border-radius-sm) !important;
+    font-weight: 500 !important;
+    font-size: 0.875rem !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    transition: all 0.15s ease !important;
+    min-height: 36px !important;
+    gap: 0.4rem !important;
+}
+
+.btn:hover { transform: none !important; }
+
+.btn-primary {
+    background: var(--accent-primary) !important;
+    color: #fff !important;
+    border-color: var(--accent-primary) !important;
+    box-shadow: none !important;
+}
+
+.btn-primary:hover {
+    background: var(--accent-primary-hover) !important;
+    box-shadow: none !important;
+}
+
+.btn-danger {
+    background: rgba(239,68,68,0.1) !important;
+    border: 1px solid rgba(239,68,68,0.3) !important;
+    color: var(--accent-danger) !important;
+}
+
+.btn-danger:hover {
+    background: var(--accent-danger) !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+
+.btn-warning {
+    background: rgba(245,158,11,0.1) !important;
+    border: 1px solid rgba(245,158,11,0.3) !important;
+    color: var(--accent-warning) !important;
+}
+
+.btn-warning:hover {
+    background: var(--accent-warning) !important;
+    color: #000 !important;
+    box-shadow: none !important;
+}
+
+.btn-outline {
+    background: transparent !important;
+    border: 1px solid var(--border-light) !important;
+    color: var(--text-secondary) !important;
+}
+
+.btn-outline:hover {
+    background: var(--hover-bg) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-light) !important;
+    transform: none !important;
+}
+
+/* ---- Forms ---- */
+.form-label {
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    color: var(--text-secondary) !important;
+    text-shadow: none !important;
+    margin-bottom: 0.4rem !important;
+}
+
+.form-control {
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    border-radius: var(--border-radius-sm) !important;
+    color: var(--text-primary) !important;
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+    min-height: 38px !important;
+    transition: border-color 0.15s !important;
+    backdrop-filter: none !important;
+}
+
+.form-control:focus {
+    border-color: var(--accent-primary) !important;
+    background: var(--input-bg) !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+    transform: none !important;
+    outline: none !important;
+}
+
+/* ---- Badges ---- */
+.badge {
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    padding: 0.2rem 0.5rem !important;
+    border-radius: 4px !important;
+    letter-spacing: 0 !important;
+}
+
+/* ---- Status badges ---- */
+.badge-running, .status-running {
+    background: rgba(34,197,94,0.15) !important;
+    color: #22c55e !important;
+    border: 1px solid rgba(34,197,94,0.25) !important;
+}
+
+.badge-stopped, .status-stopped {
+    background: rgba(239,68,68,0.1) !important;
+    color: #ef4444 !important;
+    border: 1px solid rgba(239,68,68,0.2) !important;
+}
+
+.badge-creating, .status-creating {
+    background: rgba(245,158,11,0.1) !important;
+    color: #f59e0b !important;
+    border: 1px solid rgba(245,158,11,0.2) !important;
+}
+
+/* ---- Progress bars ---- */
+.progress, .cyber-progress {
+    background: rgba(255,255,255,0.06) !important;
+    border-radius: 4px !important;
+    height: 6px !important;
+    overflow: hidden !important;
+}
+
+.progress-bar, .cyber-progress-inner {
+    border-radius: 4px !important;
+    background: var(--accent-primary) !important;
+    box-shadow: none !important;
+    transition: width 0.4s ease !important;
+}
+
+/* ---- Tables ---- */
+.modern-table th {
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    color: var(--text-muted) !important;
+    padding: 0.6rem 1rem !important;
+    border-bottom: 1px solid var(--border-color) !important;
+}
+
+.modern-table td {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.875rem !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    vertical-align: middle !important;
+}
+
+.modern-table tr:hover td {
+    background: var(--hover-bg) !important;
+}
+
+/* ---- Footer ---- */
+.footer {
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-color) !important;
+    font-size: 0.75rem !important;
+    color: var(--text-muted) !important;
+    padding: 0.75rem 1.25rem !important;
+}
+
+/* ---- Breadcrumbs ---- */
+.breadcrumb {
+    font-size: 0.8rem !important;
+    color: var(--text-muted) !important;
+    margin-bottom: 1rem !important;
+}
+
+.breadcrumb-item { color: var(--text-muted) !important; }
+.breadcrumb-item.active { color: var(--text-secondary) !important; }
+.breadcrumb-item:hover { color: var(--text-primary) !important; }
+
+/* ---- Toasts ---- */
+.toast {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+
+/* ---- Modals ---- */
+.modal-content {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important;
+}
+
+/* ---- User avatar ---- */
+.user-avatar {
+    background: var(--accent-primary) !important;
+    border-radius: 6px !important;
+    width: 32px !important;
+    height: 32px !important;
+    font-size: 0.8rem !important;
+}
+
+/* ---- Dropdown ---- */
+.user-dropdown, .notifications-panel {
+    background: var(--bg-elevated) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+}
+
+.dropdown-item {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 1rem !important;
+    min-height: 36px !important;
+    color: var(--text-secondary) !important;
+}
+
+.dropdown-item:hover {
+    background: var(--hover-bg) !important;
+    color: var(--text-primary) !important;
+}
+
+/* ---- VPS status indicator dots ---- */
+.status-dot {
+    width: 8px !important;
+    height: 8px !important;
+    border-radius: 50% !important;
+    display: inline-block !important;
+    margin-right: 6px !important;
+}
+
+.status-dot.running  { background: #22c55e !important; box-shadow: 0 0 6px rgba(34,197,94,0.5) !important; }
+.status-dot.stopped  { background: #ef4444 !important; }
+.status-dot.creating { background: #f59e0b !important; }
+.status-dot.unknown  { background: #6b7280 !important; }
+
+/* ---- Proxmox-style resource bars ---- */
+.resource-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.resource-bar-wrap .bar {
+    flex: 1;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.resource-bar-wrap .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: var(--accent-primary);
+    transition: width 0.4s ease;
+}
+
+/* ---- Convoy-style server card ---- */
+.server-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius);
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: border-color 0.15s, background 0.15s;
+    text-decoration: none;
+    color: inherit;
+}
+
+.server-card:hover {
+    border-color: rgba(255,255,255,0.15);
+    background: var(--bg-elevated);
+}
+
+.server-card-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: rgba(99,102,241,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent-primary);
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.server-card-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.server-card-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ---- Tabs - Convoy style ---- */
+.tab-modern {
+    padding: 0.5rem 0.875rem !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    border-radius: var(--border-radius-sm) !important;
+    color: var(--text-secondary) !important;
+    cursor: pointer !important;
+    transition: all 0.15s !important;
+    border: none !important;
+    background: transparent !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.4rem !important;
+}
+
+.tab-modern:hover { color: var(--text-primary) !important; background: var(--hover-bg) !important; }
+.tab-modern.active { color: var(--accent-primary) !important; background: var(--active-bg) !important; }
+
+/* ---- Action buttons grid ---- */
+.action-button {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--card-border) !important;
+    border-radius: var(--border-radius) !important;
+    padding: 0.875rem !important;
+    transition: all 0.15s !important;
+    cursor: pointer !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    text-align: left !important;
+    width: 100% !important;
+}
+
+.action-button:hover {
+    border-color: rgba(255,255,255,0.15) !important;
+    background: var(--bg-elevated) !important;
+    transform: none !important;
+}
+
+.action-icon {
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1rem !important;
+    flex-shrink: 0 !important;
+}
+
+.action-title {
+    font-size: 0.8rem !important;
+    font-weight: 600 !important;
+    color: var(--text-primary) !important;
+}
+
+.action-desc {
+    font-size: 0.7rem !important;
+    color: var(--text-muted) !important;
+    margin-top: 1px !important;
+}
+
+/* ---- Info table rows ---- */
+.info-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    padding: 0.6rem 0 !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    font-size: 0.8rem !important;
+}
+
+.info-row:last-child { border-bottom: none !important; }
+.info-label { color: var(--text-muted) !important; }
+.info-value { color: var(--text-primary) !important; font-weight: 500 !important; }
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ---- Remove all neon/cyber text effects ---- */
+h1, h2, h3, h4, h5, h6 {
+    -webkit-text-fill-color: unset !important;
+    background: none !important;
+    -webkit-background-clip: unset !important;
+    background-clip: unset !important;
+    text-shadow: none !important;
+}
+
+/* ---- Proxmox-style node status indicator ---- */
+.node-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+}
+
+.node-status-badge.online  { background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2); }
+.node-status-badge.offline { background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2); }
+
+/* ---- Convoy-style page header ---- */
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-header-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+
+.page-header-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ---- Cyber/neon class overrides to clean style ---- */
+.cyber-card { background: var(--card-bg) !important; border: 1px solid var(--card-border) !important; border-radius: var(--border-radius) !important; box-shadow: var(--card-shadow) !important; }
+.cyber-card:hover { border-color: rgba(255,255,255,0.12) !important; box-shadow: var(--card-shadow) !important; }
+.btn-cyber { background: var(--card-bg) !important; border: 1px solid var(--card-border) !important; color: var(--text-secondary) !important; border-radius: var(--border-radius-sm) !important; }
+.btn-cyber:hover { background: var(--hover-bg) !important; color: var(--text-primary) !important; border-color: var(--border-light) !important; }
+.btn-cyber-outline { background: transparent !important; border: 1px solid var(--border-color) !important; color: var(--text-secondary) !important; border-radius: var(--border-radius-sm) !important; }
+.btn-cyber-outline:hover { background: var(--hover-bg) !important; color: var(--text-primary) !important; }
+.btn-glow-primary { background: var(--accent-primary) !important; color: #fff !important; box-shadow: none !important; }
+.btn-glow-primary:hover { background: var(--accent-primary-hover) !important; box-shadow: none !important; transform: none !important; }
+.btn-glass { background: rgba(255,255,255,0.05) !important; border: 1px solid var(--border-color) !important; color: var(--text-secondary) !important; }
+.btn-glass:hover { background: var(--hover-bg) !important; color: var(--text-primary) !important; }
+.cyber-progress { background: rgba(255,255,255,0.06) !important; border-radius: 4px !important; height: 6px !important; }
+.cyber-progress-inner { box-shadow: none !important; border-radius: 4px !important; }
+.cyber-avatar { background: rgba(99,102,241,0.1) !important; border: 1px solid rgba(99,102,241,0.2) !important; border-radius: 10px !important; }
+.avatar-glow { display: none !important; }
+.pulse-badge { animation: none !important; }
+.floating { animation: none !important; }
+
+/* ---- Login page - Convoy style ---- */
+.login-container, .auth-container {
+    background: var(--bg-secondary) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: var(--border-radius) !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.4) !important;
+}
+
+/* ---- Mobile ---- */
+@media (max-width: 768px) {
+    .sidebar { transform: translateX(-100%) !important; }
+    .sidebar.mobile-open { transform: translateX(0) !important; box-shadow: 0 0 40px rgba(0,0,0,0.6) !important; }
+    .main-content { margin-left: 0 !important; }
+    .content { padding: 1rem !important; }
+}
+
+/* ---- Admin sidebar overrides ---- */
+.admin-sidebar, .admin-wrapper .admin-sidebar {
+    background: var(--bg-secondary) !important;
+    border-right: 1px solid var(--border-color) !important;
+    width: var(--sidebar-width) !important;
+    box-shadow: none !important;
+}
+
+.admin-sidebar .sidebar-logo, .admin-sidebar .logo {
+    font-size: 1rem !important;
+    font-weight: 700 !important;
+    color: var(--text-primary) !important;
+}
+
+.admin-sidebar .nav-item, .admin-sidebar .sidebar-item {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+    margin: 1px 0.5rem !important;
+    border-radius: var(--border-radius-sm) !important;
+    color: var(--text-secondary) !important;
+    transition: all 0.15s !important;
+    border: none !important;
+    min-height: 36px !important;
+}
+
+.admin-sidebar .nav-item:hover, .admin-sidebar .sidebar-item:hover {
+    background: var(--hover-bg) !important;
+    color: var(--text-primary) !important;
+    transform: none !important;
+}
+
+.admin-sidebar .nav-item.active, .admin-sidebar .sidebar-item.active {
+    background: var(--active-bg) !important;
+    color: var(--accent-primary) !important;
+    border-left: none !important;
+}
+
+.admin-header, .admin-topbar {
+    background: var(--bg-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    height: var(--header-height) !important;
+    box-shadow: none !important;
+}
+
+.admin-content, .admin-main {
+    background: var(--bg-primary) !important;
+}
+
+.admin-footer, .footer-copyright {
+    background: var(--bg-secondary) !important;
+    border-top: 1px solid var(--border-color) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.75rem !important;
+}
+
+/* ---- Proxmox-style data table ---- */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.data-table th {
+    background: var(--bg-tertiary);
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+}
+
+.data-table td {
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.data-table tr:hover td { background: var(--hover-bg); }
+.data-table tr:last-child td { border-bottom: none; }
+
+/* ---- Convoy-style empty state ---- */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-muted);
+}
+
+.empty-state i {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+    display: block;
+}
+
+.empty-state p {
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+/* ---- Convoy-style section header ---- */
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.section-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-title i { color: var(--accent-primary); font-size: 0.875rem; }
+
+/* ---- Proxmox-style summary bar ---- */
+.summary-bar {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--border-color);
+    font-size: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.summary-item { display: flex; align-items: center; gap: 0.4rem; color: var(--text-secondary); }
+.summary-item strong { color: var(--text-primary); font-weight: 600; }
+
+/* ---- Convoy-style search input ---- */
+.search-input-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.search-input-wrap i {
+    position: absolute;
+    left: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    pointer-events: none;
+}
+
+.search-input-wrap input {
+    padding-left: 2.25rem !important;
+    background: var(--input-bg) !important;
+    border: 1px solid var(--input-border) !important;
+    border-radius: var(--border-radius-sm) !important;
+    color: var(--text-primary) !important;
+    font-size: 0.875rem !important;
+    height: 36px !important;
+    min-width: 220px !important;
+}
+
+.search-input-wrap input:focus {
+    border-color: var(--accent-primary) !important;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+    outline: none !important;
+}

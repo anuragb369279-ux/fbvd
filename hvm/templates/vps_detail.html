@@ -1,0 +1,2903 @@
+{% extends "base.html" %}
+{% block title %}{{ vps.hostname or vps.container_name }} - {{ panel_name }}{% endblock %}
+{% block header_title %}{{ vps.hostname or vps.container_name }}{% endblock %}
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <a href="{{ url_for('vps_list') }}" class="breadcrumb-item">My VPS</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">{{ vps.hostname or vps.container_name }}</span>
+</div>
+{% endblock %}
+{% block content %}
+
+<!-- VPS Header -->
+<div class="glass-card floating" style="margin-bottom: 2rem; padding: 2.5rem; border-left: 5px solid var(--accent-primary);">
+    <div style="display: flex; align-items: center; gap: 2rem; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <div class="cyber-avatar">
+                <i class="fas fa-server"></i>
+                <div class="avatar-glow"></div>
+            </div>
+            <div>
+                <h2 style="font-size: 2rem; font-weight: 900; letter-spacing: -1px; margin-bottom: 0.5rem; background: linear-gradient(to right, #fff, var(--accent-primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">{{ vps.hostname or vps.container_name }}</h2>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                    <span class="badge badge-info" style="font-family: var(--font-mono); border: 1px solid rgba(0, 242, 255, 0.2);">#{{ vps.id }}</span>
+                    <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
+                        <i class="fas fa-microchip" style="margin-right: 5px;"></i> {{ vps.cpu }} CORES
+                    </span>
+                    <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-secondary);">
+                        <i class="fas fa-memory" style="margin-right: 5px;"></i> {{ vps.ram }}
+                    </span>
+                </div>
+            </div>
+        </div>
+       
+        <div style="margin-left: auto; display: flex; gap: 1rem; flex-wrap: wrap;">
+            {% if not vps.suspended %}
+            <button class="btn btn-glow-primary" style="min-width: 140px; height: 50px;"
+                    onclick="controlVPS('{{ vps.id }}', '{% if stats.status == 'running' %}stop{% else %}start{% endif %}')">
+                <i class="fas fa-{% if stats.status == 'running' %}power-off{% else %}play{% endif %}"></i>
+                <span>{% if stats.status == 'running' %}SHUTDOWN{% else %}BOOT{% endif %}</span>
+            </button>
+           
+            {% if stats.status == 'running' %}
+            <button class="btn btn-glass" style="height: 50px;" onclick="controlVPS('{{ vps.id }}', 'restart')">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            {% endif %}
+           
+            <a href="{{ url_for('vps_console', vps_id=vps.id) }}" class="btn btn-outline" style="height: 50px; border-width: 2px;">
+                <i class="fas fa-terminal"></i> <span>CONSOLE</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.cyber-avatar {
+    width: 80px;
+    height: 80px;
+    background: var(--bg-elevated);
+    border: 2px solid var(--accent-primary);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    color: var(--accent-primary);
+    position: relative;
+    box-shadow: inset 0 0 20px rgba(0, 242, 255, 0.1);
+}
+.avatar-glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 100%;
+    background: var(--accent-primary);
+    filter: blur(30px);
+    opacity: 0.2;
+    z-index: -1;
+}
+.resource-stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    transition: all 0.4s ease;
+}
+.resource-stat-card:hover {
+    border-color: var(--accent-primary);
+    background: rgba(0, 242, 255, 0.02);
+}
+.cyber-progress {
+    height: 10px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 20px;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+.cyber-progress-inner {
+    height: 100%;
+    border-radius: 20px;
+    position: relative;
+    transition: width 1s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.cyber-progress-inner::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 10px;
+    height: 100%;
+    background: #fff;
+    filter: blur(5px);
+    opacity: 0.5;
+}
+</style>
+
+<!-- Resource Stats -->
+<div class="grid grid-3" style="margin-bottom: 2rem; gap: 1.5rem;">
+    <!-- CPU Card -->
+    <div class="resource-stat-card" style="--accent-primary: #00f2ff;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <div style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 800; letter-spacing: 1px;">PROCESSOR</div>
+                <div style="font-size: 2.5rem; font-weight: 900; font-family: var(--font-mono);">
+                    <span class="vps-cpu-text" data-id="{{ vps.id }}">
+                        {% if stats and stats.status == 'running' %}
+                            {{ (stats.cpu|default(0)|float)|round(1) }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </span><span style="font-size: 1rem; color: var(--accent-primary);">%</span>
+                </div>
+            </div>
+            <i class="fas fa-microchip" style="font-size: 1.5rem; color: var(--accent-primary); opacity: 0.5;"></i>
+        </div>
+        <div class="cyber-progress">
+            <div class="cyber-progress-inner vps-cpu" data-id="{{ vps.id }}" style="width: {% if stats.status == 'running' %}{{ stats.cpu|default(0) }}{% else %}0{% endif %}%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-info)); box-shadow: 0 0 20px var(--accent-primary);"></div>
+        </div>
+    </div>
+
+    <!-- RAM Card -->
+    <div class="resource-stat-card" style="--accent-primary: #00ff9d;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <div style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 800; letter-spacing: 1px;">MEMORY</div>
+                <div style="font-size: 2.5rem; font-weight: 900; font-family: var(--font-mono);">
+                    <span class="vps-ram-text" data-id="{{ vps.id }}">
+                        {% if stats.status == 'running' and stats.ram is mapping %}
+                            {{ (stats.ram.used|default(0))|round }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </span><span style="font-size: 1rem; color: var(--accent-primary);">MB</span>
+                </div>
+            </div>
+            <i class="fas fa-memory" style="font-size: 1.5rem; color: var(--accent-primary); opacity: 0.5;"></i>
+        </div>
+        <div class="cyber-progress">
+            {% set ram_pct = 0 %}
+            {% if stats.status == 'running' and stats.ram is mapping %}
+                {% set ram_pct = stats.ram.pct|default(0) %}
+            {% endif %}
+            <div class="cyber-progress-inner vps-ram" data-id="{{ vps.id }}" style="width: {{ ram_pct }}%; background: linear-gradient(90deg, var(--accent-primary), #00ccff); box-shadow: 0 0 20px var(--accent-primary);"></div>
+        </div>
+    </div>
+
+    <!-- Disk Card -->
+    <div class="resource-stat-card" style="--accent-primary: #ffb800;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <div style="color: var(--text-secondary); font-size: 0.75rem; font-weight: 800; letter-spacing: 1px;">STORAGE</div>
+                <div style="font-size: 2.5rem; font-weight: 900; font-family: var(--font-mono);">
+                    <span class="vps-disk-text" data-id="{{ vps.id }}">
+                        {% if stats.status == 'running' %}
+                            {% if stats.disk is mapping %}
+                                {{ stats.disk.use_percent|default('0%') }}
+                            {% else %}
+                                {{ stats.disk|default('0%') }}
+                            {% endif %}
+                        {% else %}
+                            0%
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            <i class="fas fa-hdd" style="font-size: 1.5rem; color: var(--accent-primary); opacity: 0.5;"></i>
+        </div>
+        <div class="cyber-progress">
+            {% set disk_pct = '0' %}
+            {% if stats.status == 'running' %}
+                {% if stats.disk is mapping %}
+                    {% set disk_pct = stats.disk.use_percent|default('0%')|replace('%','') %}
+                {% elif stats.disk is string and '%' in stats.disk %}
+                    {% set disk_pct = stats.disk|replace('%','') %}
+                {% endif %}
+            {% endif %}
+            <div class="cyber-progress-inner vps-disk" data-id="{{ vps.id }}" style="width: {{ disk_pct }}%; background: linear-gradient(90deg, var(--accent-primary), #ff6600); box-shadow: 0 0 20px var(--accent-primary);"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Tabs -->
+<div class="tabs-modern">
+    <div class="tab-modern active" onclick="showTab('overview')">
+        <i class="fas fa-home"></i>
+        <span>Overview</span>
+    </div>
+    <div class="tab-modern" onclick="showTab('performance')">
+        <i class="fas fa-chart-line"></i>
+        <span>Performance</span>
+    </div>
+    <div class="tab-modern" onclick="showTab('network')">
+        <i class="fas fa-network-wired"></i>
+        <span>Network</span>
+    </div>
+    <div class="tab-modern" onclick="showTab('ports')">
+        <i class="fas fa-plug"></i>
+        <span>Port Forwarding</span>
+    </div>
+    <div class="tab-modern" onclick="showTab('firewall')">
+        <i class="fas fa-shield-alt"></i>
+        <span>Firewall</span>
+    </div>
+    <div class="tab-modern" onclick="showTab('files')">
+        <i class="fas fa-folder-open"></i>
+        <span>File Manager</span>
+    </div>
+    <div class="tab-modern" onclick="showTab('settings')">
+        <i class="fas fa-cog"></i>
+        <span>Settings</span>
+    </div>
+</div>
+
+<style>
+.tabs-modern {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    padding: 0.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.tabs-modern::-webkit-scrollbar { display: none; }
+
+.tab-modern {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1.5rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: var(--border-radius);
+    transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+    white-space: nowrap;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.tab-modern:hover {
+    color: var(--text-primary);
+    background: var(--hover-bg);
+}
+
+.tab-modern.active {
+    background: var(--glass-bg);
+    color: var(--accent-primary);
+    border-color: rgba(0, 242, 255, 0.2);
+    box-shadow: 0 4px 15px rgba(0, 242, 255, 0.1);
+}
+
+.info-table {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.info-row:last-child { border-bottom: none; }
+
+.info-label {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.info-value {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-dot.running { background: var(--accent-success); box-shadow: 0 0 10px var(--accent-success); }
+.status-dot.stopped { background: var(--accent-danger); }
+.status-dot.suspended { background: var(--accent-warning); }
+
+.action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.action-button {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: left;
+    width: 100%;
+}
+
+.action-button:hover {
+    border-color: var(--accent-primary);
+    background: var(--hover-bg);
+    transform: translateY(-2px);
+}
+
+.action-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+.action-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+}
+
+.action-desc {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.expiration-card {
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.expiration-card.critical { border-color: var(--accent-danger); background: rgba(255, 0, 85, 0.05); }
+.expiration-card.warning { border-color: var(--accent-warning); background: rgba(255, 184, 0, 0.05); }
+
+.expiration-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.alert-box {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 10px;
+    display: flex;
+    gap: 1rem;
+    font-size: 0.85rem;
+}
+
+.alert-box.warning { background: rgba(255, 184, 0, 0.1); color: var(--accent-warning); border: 1px solid rgba(255, 184, 0, 0.2); }
+.alert-box.danger { background: rgba(255, 0, 85, 0.1); color: var(--accent-danger); border: 1px solid rgba(255, 0, 85, 0.2); }
+.alert-box.info { background: rgba(0, 242, 255, 0.1); color: var(--accent-primary); border: 1px solid rgba(0, 242, 255, 0.2); }
+
+.port-badge {
+    background: var(--bg-tertiary);
+    color: var(--accent-primary);
+    padding: 0.25rem 0.6rem;
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    border: 1px solid var(--border-color);
+}
+
+.danger-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem;
+    background: rgba(255, 0, 85, 0.02);
+    border: 1px solid rgba(255, 0, 85, 0.1);
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+}
+
+.danger-title { font-weight: 700; color: var(--accent-danger); margin-bottom: 0.25rem; }
+.danger-desc { font-size: 0.8rem; color: var(--text-muted); }
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 1rem;
+}
+
+.modal.show { display: flex; }
+
+.modal-content {
+    background: var(--bg-elevated);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--border-radius-lg);
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    animation: modalSlide 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes modalSlide {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body { padding: 1.5rem; }
+.modal-footer {
+    padding: 1.25rem 1.5rem;
+    background: var(--bg-secondary);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.modal-close:hover { color: var(--text-primary); }
+
+.copy-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.copy-btn:hover { color: var(--accent-primary); border-color: var(--accent-primary); }
+</style>
+
+<!-- Overview Tab -->
+<div id="tab-overview" class="tab-content active">
+    <div class="grid grid-2" style="margin-top: 1.5rem; gap: 1.5rem;">
+        <!-- System Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-info-circle"></i>
+                    System Information
+                </h3>
+            </div>
+            <div class="info-table">
+                <div class="info-row">
+                    <span class="info-label">Hostname</span>
+                    <span class="info-value">{{ vps.hostname or vps.container_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Container Name</span>
+                    <span class="info-value" style="font-family: monospace;">{{ vps.container_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Operating System</span>
+                    <span class="info-value">
+                        <span class="badge badge-info">
+                            <i class="{{ os_icon|get_os_icon }}"></i>
+                            {{ vps.os_version }}
+                        </span>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status</span>
+                    <span class="info-value">
+                        <div class="status-indicator">
+                            <span class="status-dot {% if vps.suspended %}suspended{% elif stats.status == 'running' %}running{% else %}stopped{% endif %}"></span>
+                            <span>{% if vps.suspended %}Suspended{% elif stats.status == 'running' %}Running{% else %}Stopped{% endif %}</span>
+                        </div>
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Node</span>
+                    <span class="info-value">
+                        {% if node %}
+                            {{ node.name }} <span class="badge" style="background: var(--bg-tertiary);">{{ node.location }}</span>
+                        {% else %}
+                            <span class="text-danger">Unknown Node (ID: {{ vps.node_id }})</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">IP Address</span>
+                    <span class="info-value" style="font-family: monospace;">
+                        {% if vps.ip_address %}
+                        {{ vps.ip_address }} <span class="badge badge-success">Dedicated</span>
+                        {% elif vps.ip_alias %}
+                        {{ vps.ip_alias }} <span class="badge badge-info">Shared</span>
+                        {% else %}
+                        <span class="text-muted">Not assigned</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Private IP</span>
+                    <span class="info-value" style="font-family: monospace;">{{ private_ip }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Created</span>
+                    <span class="info-value">{{ vps.created_at|relative_time }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Last Started</span>
+                    <span class="info-value">{{ vps.last_started|relative_time if vps.last_started else 'Never' }}</span>
+                </div>
+                {% if stats.status == 'running' %}
+                <div class="info-row">
+                    <span class="info-label">Uptime</span>
+                    <span class="info-value">{{ stats.uptime|default('N/A') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Processes</span>
+                    <span class="info-value">{{ stats.processes|default('N/A') }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Expiration Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-clock"></i>
+                    Expiration Information
+                </h3>
+            </div>
+            {% if vps.auto_suspend_enabled and vps.expires_at %}
+            {% set expires_dt = vps.expires_at|parse_datetime %}
+            {% if expires_dt %}
+            {% set current_time = now() %}
+            {% set time_diff = (expires_dt - current_time).total_seconds() %}
+            {% set days_left = (time_diff / 86400)|int %}
+            {% set hours_left = (time_diff / 3600)|int %}
+            {% set is_expired = days_left < 0 %}
+            
+            <div class="expiration-card {% if is_expired %}expired{% elif days_left <= 3 %}critical{% elif days_left <= 7 %}warning{% else %}active{% endif %}">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div class="expiration-icon">
+                            <i class="fas fa-{% if is_expired %}exclamation-triangle{% else %}clock{% endif %}"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">Status</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;">
+                                {% if is_expired %}
+                                    EXPIRED
+                                {% elif days_left == 0 %}
+                                    {{ hours_left }} Hours Left
+                                {% elif days_left <= 3 %}
+                                    {{ days_left }} Days Left
+                                {% else %}
+                                    {{ days_left }} Days Remaining
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% if is_expired %}
+                        <span class="badge badge-danger pulse-badge">
+                            <i class="fas fa-exclamation-triangle"></i> Expired
+                        </span>
+                    {% elif days_left <= 1 %}
+                        <span class="badge badge-danger pulse-badge">
+                            <i class="fas fa-exclamation-triangle"></i> Critical
+                        </span>
+                    {% elif days_left <= 3 %}
+                        <span class="badge badge-warning pulse-badge">
+                            <i class="fas fa-clock"></i> Expiring Soon
+                        </span>
+                    {% elif days_left <= 7 %}
+                        <span class="badge badge-info">
+                            <i class="fas fa-clock"></i> {{ days_left }}d left
+                        </span>
+                    {% else %}
+                        <span class="badge badge-success">
+                            <i class="fas fa-check"></i> Active
+                        </span>
+                    {% endif %}
+                </div>
+                
+                <div class="info-table">
+                    <div class="info-row">
+                        <span class="info-label">Expiration Date</span>
+                        <span class="info-value">{{ expires_dt.strftime('%Y-%m-%d %H:%M') }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Time Remaining</span>
+                        <span class="info-value">
+                            {% if is_expired %}
+                                <span style="color: var(--accent-danger);">Expired {{ (days_left * -1) }} days ago</span>
+                            {% elif days_left == 0 %}
+                                <span style="color: var(--accent-danger);">{{ hours_left }} hours</span>
+                            {% else %}
+                                {{ days_left }} days, {{ (hours_left % 24) }} hours
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Expiration Period</span>
+                        <span class="info-value">{{ vps.expiration_days }} days</span>
+                    </div>
+                    {% if vps.last_renewed_at %}
+                    <div class="info-row">
+                        <span class="info-label">Last Renewed</span>
+                        <span class="info-value">{{ vps.last_renewed_at|parse_datetime|relative_time if vps.last_renewed_at else 'Never' }}</span>
+                    </div>
+                    {% endif %}
+                    {% if vps.renewal_count %}
+                    <div class="info-row">
+                        <span class="info-label">Renewal Count</span>
+                        <span class="info-value">{{ vps.renewal_count }} time{{ 's' if vps.renewal_count != 1 else '' }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                {% if is_expired or days_left <= 7 %}
+                <div class="alert-box {% if is_expired %}danger{% else %}warning{% endif %}">
+                    <i class="fas fa-info-circle"></i>
+                    <div>
+                        <strong>
+                            {% if is_expired %}
+                                VPS Has Expired
+                            {% else %}
+                                VPS Expiring Soon
+                            {% endif %}
+                        </strong>
+                        <p>
+                            {% if is_expired %}
+                                This VPS has expired and {% if vps.suspended %}has been suspended{% else %}will be suspended soon{% endif %}. Please contact an administrator to renew your VPS.
+                            {% else %}
+                                Your VPS will expire in {{ days_left }} day{{ 's' if days_left != 1 else '' }}. Contact an administrator to extend the expiration date.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% else %}
+            <div class="empty-state-small">
+                <div class="empty-icon">
+                    <i class="fas fa-infinity"></i>
+                </div>
+                <h4>No Expiration Set</h4>
+                <p>This VPS does not have an expiration date configured.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-bolt"></i>
+                Quick Actions
+            </h3>
+        </div>
+        <div class="action-grid">
+            {% if stats.status == 'running' and not vps.suspended %}
+            <button class="action-button" onclick="generateSSH()">
+                <div class="action-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;">
+                    <i class="fas fa-terminal"></i>
+                </div>
+                <div class="action-content">
+                    <div class="action-title">SSH Session</div>
+                    <div class="action-desc">Generate SSH credentials</div>
+                </div>
+            </button>
+            <button class="action-button" onclick="installSshx()">
+                <div class="action-icon" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;">
+                    <i class="fas fa-share-alt"></i>
+                </div>
+                <div class="action-content">
+                    <div class="action-title">Install sshx</div>
+                    <div class="action-desc">Web-based terminal share</div>
+                </div>
+            </button>
+            {% endif %}
+           
+            <button class="action-button" onclick="showReinstallModal()">
+                <div class="action-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;">
+                    <i class="fas fa-redo-alt"></i>
+                </div>
+                <div class="action-content">
+                    <div class="action-title">Reinstall OS</div>
+                    <div class="action-desc">Fresh installation</div>
+                </div>
+            </button>
+           
+            <button class="action-button" onclick="showRenameModal()">
+                <div class="action-icon" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">
+                    <i class="fas fa-pen"></i>
+                </div>
+                <div class="action-content">
+                    <div class="action-title">Rename VPS</div>
+                    <div class="action-desc">Change hostname</div>
+                </div>
+            </button>
+           
+            {% if current_user.is_admin and not vps.whitelisted %}
+            <button class="action-button" onclick="suspendVPS()">
+                <div class="action-icon" style="background: rgba(239, 68, 68, 0.1); color: #ef4444;">
+                    <i class="fas fa-ban"></i>
+                </div>
+                <div class="action-content">
+                    <div class="action-title">Suspend VPS</div>
+                    <div class="action-desc">Temporarily disable</div>
+                </div>
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Performance Tab -->
+<div id="tab-performance" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-line"></i>
+                Live Performance Metrics
+            </h3>
+            <button class="btn btn-sm btn-outline" onclick="refreshCharts()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+        </div>
+       
+        {% if stats.status == 'running' %}
+        <div style="margin-bottom: 2rem;">
+            <h4 style="margin-bottom: 1rem; font-size: 1rem; color: var(--text-secondary);">CPU Usage Over Time</h4>
+            <div style="height: 300px; position: relative;">
+                <canvas id="cpuChart"></canvas>
+            </div>
+        </div>
+       
+        <div style="margin-bottom: 2rem;">
+            <h4 style="margin-bottom: 1rem; font-size: 1rem; color: var(--text-secondary);">Memory Usage Over Time</h4>
+            <div style="height: 300px; position: relative;">
+                <canvas id="ramChart"></canvas>
+            </div>
+        </div>
+       
+        <div>
+            <h4 style="margin-bottom: 1rem; font-size: 1rem; color: var(--text-secondary);">Network Traffic</h4>
+            <div style="height: 300px; position: relative;">
+                <canvas id="networkChart"></canvas>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-chart-line"></i>
+            <h3>VPS Not Running</h3>
+            <p>Start the VPS to view performance metrics</p>
+            <button class="btn btn-primary" onclick="controlVPS('{{ vps.id }}', 'start')">
+                <i class="fas fa-play"></i> Start VPS
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Network Tab -->
+<div id="tab-network" class="tab-content" style="display: none;">
+    <div class="grid grid-2" style="margin-top: 1.5rem; gap: 1.5rem;">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-network-wired"></i>
+                    Network Information
+                </h3>
+            </div>
+            <div class="info-table">
+                <div class="info-row">
+                    <span class="info-label">Public IP</span>
+                    <span class="info-value" style="font-family: monospace;">{{ display_ip }}</span>
+                </div>
+                {% if vps.ip_alias %}
+                <div class="info-row">
+                    <span class="info-label">IP Alias</span>
+                    <span class="info-value" style="font-family: monospace;">{{ vps.ip_alias }}</span>
+                </div>
+                {% endif %}
+                <div class="info-row">
+                    <span class="info-label">Private IP</span>
+                    <span class="info-value" style="font-family: monospace;">{{ private_ip }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Bandwidth Limit</span>
+                    <span class="info-value">
+                        {% if vps.bandwidth_limit and vps.bandwidth_limit > 0 %}
+                            {{ vps.bandwidth_limit }} Mbps
+                        {% else %}
+                            <span style="color: var(--accent-success);">Unlimited</span>
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Bandwidth Used</span>
+                    <span class="info-value">{{ vps.bandwidth_used|default(0) }} MB</span>
+                </div>
+                {% if stats.status == 'running' and stats.network %}
+                <div class="info-row">
+                    <span class="info-label">RX (Received)</span>
+                    <span class="info-value">{{ stats.network.rx|default('N/A') }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">TX (Transmitted)</span>
+                    <span class="info-value">{{ stats.network.tx|default('N/A') }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-plug"></i>
+                    Active Port Forwards
+                </h3>
+            </div>
+            {% if forwards %}
+            <div style="max-height: 300px; overflow-y: auto;">
+                {% for forward in forwards[:5] %}
+                <div class="port-forward-item">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="port-badge">{{ forward.vps_port }}</div>
+                        <i class="fas fa-arrow-right" style="color: var(--text-secondary);"></i>
+                        <div class="port-badge">{{ forward.host_port }}</div>
+                    </div>
+                    <div style="font-size: 0.875rem; color: var(--text-secondary);">
+                        {% if 'tcp' in forward.protocol and 'udp' in forward.protocol %}
+                            <span class="badge badge-info" style="margin-right: 0.25rem;">TCP</span>
+                            <span class="badge badge-success">UDP</span>
+                        {% else %}
+                            <span class="badge">{{ forward.protocol|upper }}</span>
+                        {% endif %}
+                        - {{ forward.description or 'No description' }}
+                    </div>
+                </div>
+                {% endfor %}
+                {% if forwards|length > 5 %}
+                <div style="text-align: center; padding: 0.75rem;">
+                    <a href="#" onclick="showTab('ports'); return false;" style="color: var(--accent-primary); font-size: 0.875rem;">
+                        View all {{ forwards|length }} port forwards <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="empty-state-small">
+                <i class="fas fa-plug"></i>
+                <p>No port forwards configured</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Port Forwarding Tab -->
+<div id="tab-ports" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-plug"></i>
+                Port Forwarding Rules
+            </h3>
+            <button class="btn btn-primary btn-sm" onclick="showAddPortModal()">
+                <i class="fas fa-plus"></i> Add Port
+            </button>
+        </div>
+        {% if forwards %}
+        <div class="table-responsive">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>VPS Port</th>
+                        <th>Host Port</th>
+                        <th>Protocol</th>
+                        <th>Description</th>
+                        <th>Created</th>
+                        <th>Hits</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for forward in forwards %}
+                    <tr>
+                        <td><span class="port-badge">{{ forward.vps_port }}</span></td>
+                        <td>
+                            <span class="badge badge-info" style="font-family: monospace;">
+                                {{ forward.host_port }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if 'tcp' in forward.protocol and 'udp' in forward.protocol %}
+                                <span class="badge badge-info" style="margin-right: 0.25rem;">TCP</span>
+                                <span class="badge badge-success">UDP</span>
+                            {% else %}
+                                <span class="badge">{{ forward.protocol|upper }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ forward.description or '-' }}</td>
+                        <td>{{ forward.created_at|relative_time }}</td>
+                        <td><span class="badge badge-success">{{ forward.hits }}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="removePort('{{ forward.id }}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fas fa-plug"></i>
+            <h3>No Port Forwards</h3>
+            <p>You haven't set up any port forwarding rules yet.</p>
+            <button class="btn btn-primary" onclick="showAddPortModal()">
+                <i class="fas fa-plus"></i> Add Port Forward
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Firewall Tab -->
+<div id="tab-firewall" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-shield-alt"></i>
+                Firewall Management
+            </h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-sm btn-outline" id="firewallToggleBtn" onclick="toggleFirewall()">
+                    <i class="fas fa-power-off"></i> <span id="firewallStatusText">Loading...</span>
+                </button>
+                <button class="btn btn-sm btn-warning" onclick="applyDDoSProtection()">
+                    <i class="fas fa-bolt"></i> DDoS Protect
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="showAddFirewallModal()">
+                    <i class="fas fa-plus"></i> Add Rule
+                </button>
+            </div>
+        </div>
+        
+        <div class="alert-box info" id="firewallStatusAlert" style="margin: 1.5rem 1.5rem 0;">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>Firewall Status:</strong> <span id="firewallStatusBadge" class="badge">Checking...</span>
+                <p style="margin-top: 0.25rem; font-size: 0.8rem;">Security groups are managed via UFW inside the container. Rules apply instantly.</p>
+            </div>
+        </div>
+
+        <div id="firewallRulesContainer" style="padding: 1.5rem;">
+            <div class="table-responsive">
+                <table class="table-modern">
+                    <thead>
+                        <tr>
+                            <th>Direction</th>
+                            <th>Protocol</th>
+                            <th>Port/Range</th>
+                            <th>Source IP</th>
+                            <th>Action</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="firewallRulesTableBody">
+                        <!-- Rules will be loaded here -->
+                        <tr><td colspan="6" style="text-align: center; padding: 2rem;">Loading rules...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File Manager Tab -->
+<div id="tab-files" class="tab-content" style="display: none;">
+    <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-folder-open"></i>
+                File Manager
+            </h3>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-sm btn-outline" onclick="fileManagerGoUp()">
+                    <i class="fas fa-arrow-up"></i> Up
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="showCreateFileModal()">
+                    <i class="fas fa-plus"></i> New File
+                </button>
+                <button class="btn btn-sm btn-primary" onclick="showCreateDirModal()">
+                    <i class="fas fa-folder-plus"></i> New Directory
+                </button>
+            </div>
+        </div>
+        <div style="padding: 1rem; border-bottom: 1px solid var(--border-color); background: var(--bg-secondary);">
+            <code id="fileManagerCurrentPath" style="font-family: var(--font-mono);">/</code>
+        </div>
+        <div class="table-responsive">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Size</th>
+                        <th>Modified</th>
+                        <th>Permissions</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="fileManagerTableBody">
+                    <!-- File list will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Tab -->
+<div id="tab-settings" class="tab-content" style="display: none;">
+    <div class="grid grid-2" style="margin-top: 1.5rem; gap: 1.5rem;">
+        <!-- Password Management -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-key"></i>
+                    VPS Password Management
+                </h3>
+            </div>
+            <div style="padding: 1.5rem;">
+                <!-- Current Password Display -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-weight: 600;">
+                        <i class="fas fa-lock"></i>
+                        Current Password
+                    </label>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <input type="password" id="currentPasswordDisplay" value="Loading..." readonly style="flex: 1; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-family: 'Courier New', monospace; font-weight: 600;">
+                        <button type="button" class="btn btn-outline" onclick="togglePasswordVisibility()" title="Show/Hide Password" style="padding: 0.75rem 1rem;">
+                            <i id="passwordToggleIcon" class="fas fa-eye"></i>
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="copyPassword()" title="Copy Password" style="padding: 0.75rem 1rem;">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button type="button" class="btn btn-primary" onclick="refreshPassword()" title="Refresh Password" style="padding: 0.75rem 1rem;">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                        <i class="fas fa-info-circle"></i> This is the root password for SSH access
+                    </small>
+                </div>
+
+                <!-- Change Password Form -->
+                <form onsubmit="changeVPSPassword(event)">
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-weight: 600;">
+                            <i class="fas fa-key"></i>
+                            New Password
+                        </label>
+                        <input type="password" id="newPassword" class="form-control" placeholder="Enter new password" required minlength="8" style="padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; width: 100%;">
+                        <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                            Minimum 8 characters required
+                        </small>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; font-weight: 600;">
+                            <i class="fas fa-check-circle"></i>
+                            Confirm New Password
+                        </label>
+                        <input type="password" id="confirmPassword" class="form-control" placeholder="Confirm new password" required minlength="8" style="padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; width: 100%;">
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-save"></i> Change Password
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Danger Zone
+                </h3>
+            </div>
+            <div class="danger-zone">
+                <div class="danger-item">
+                    <div>
+                        <div class="danger-title">Reinstall Operating System</div>
+                        <div class="danger-desc">Wipe all data and reinstall the OS</div>
+                    </div>
+                    <button class="btn btn-warning" onclick="showReinstallModal()">
+                        <i class="fas fa-redo-alt"></i> Reinstall
+                    </button>
+                </div>
+                {% if current_user.is_admin %}
+                <div class="danger-item">
+                    <div>
+                        <div class="danger-title">Delete VPS</div>
+                        <div class="danger-desc">Permanently delete this VPS and all its data</div>
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteVPS()">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modals -->
+<!-- Add Port Modal -->
+<div id="addPortModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-plus"></i> Add Port Forward</h3>
+            <button class="modal-close" onclick="hideModal('addPortModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>VPS Port</label>
+                <input type="number" id="vpsPort" class="form-control" placeholder="8080" min="1" max="65535">
+            </div>
+            <div class="form-group">
+                <label>Protocol</label>
+                <select id="portProtocol" class="form-control">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                    <option value="tcp,udp">TCP + UDP (Both)</option>
+                </select>
+                <small style="color: var(--text-secondary); display: block; margin-top: 0.5rem;">
+                    Select TCP+UDP to forward both protocols on the same port
+                </small>
+            </div>
+            <div class="form-group">
+                <label>Description (Optional)</label>
+                <input type="text" id="portDescription" class="form-control" placeholder="Web Server">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('addPortModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="addPort()">
+                <i class="fas fa-plus"></i> Add Port
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Reinstall Modal -->
+<div id="reinstallModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-redo-alt"></i> Reinstall Operating System</h3>
+            <button class="modal-close" onclick="hideModal('reinstallModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="alert-box warning">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div>
+                    <strong>Warning!</strong>
+                    <p>This will delete all data on the VPS and perform a fresh installation.</p>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Select Operating System</label>
+                <select id="osVersion" class="form-control">
+                    <option value="ubuntu-22.04">Ubuntu 22.04 LTS</option>
+                    <option value="ubuntu-20.04">Ubuntu 20.04 LTS</option>
+                    <option value="debian-12">Debian 12</option>
+                    <option value="debian-11">Debian 11</option>
+                    <option value="centos-9">CentOS 9</option>
+                    <option value="alpine-3.18">Alpine 3.18</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('reinstallModal')">Cancel</button>
+            <button class="btn btn-warning" onclick="reinstallVPS()">
+                <i class="fas fa-redo-alt"></i> Reinstall
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Firewall Rule Modal -->
+<div id="addFirewallModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-shield-alt"></i> Add Firewall Rule</h3>
+            <button class="modal-close" onclick="hideModal('addFirewallModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Direction</label>
+                <select id="fwDirection" class="form-control">
+                    <option value="in">Inbound (Incoming)</option>
+                    <option value="out">Outbound (Outgoing)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Protocol</label>
+                <select id="fwProtocol" class="form-control">
+                    <option value="tcp">TCP</option>
+                    <option value="udp">UDP</option>
+                    <option value="icmp">ICMP</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Port / Range</label>
+                <input type="text" id="fwPort" class="form-control" placeholder="80 or 8000-9000">
+            </div>
+            <div class="form-group">
+                <label>Source / Destination IP</label>
+                <input type="text" id="fwSource" class="form-control" placeholder="0.0.0.0/0" value="0.0.0.0/0">
+            </div>
+            <div class="form-group">
+                <label>Action</label>
+                <select id="fwAction" class="form-control">
+                    <option value="allow">Allow</option>
+                    <option value="deny">Deny</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('addFirewallModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="addFirewallRule()">
+                <i class="fas fa-plus"></i> Add Rule
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- File Manager Modals -->
+<div id="fileEditModal" class="modal">
+    <div class="modal-content" style="max-width: 80vw;">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit"></i> Edit File</h3>
+            <button class="modal-close" onclick="hideModal('fileEditModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="fileEditPath">
+            <textarea id="fileEditContent" style="width: 100%; height: 60vh; font-family: monospace; background: #1a1a1a; color: #f0f0f0; border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem;"></textarea>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('fileEditModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="saveFileContent()">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="createFileModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-plus"></i> Create New File</h3>
+            <button class="modal-close" onclick="hideModal('createFileModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>File Name</label>
+                <input type="text" id="newFileName" class="form-control" placeholder="e.g., config.txt">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('createFileModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="createFile()">Create File</button>
+        </div>
+    </div>
+</div>
+
+<div id="createDirModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-folder-plus"></i> Create New Directory</h3>
+            <button class="modal-close" onclick="hideModal('createDirModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Directory Name</label>
+                <input type="text" id="newDirName" class="form-control" placeholder="e.g., my_app">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('createDirModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="createDirectory()">Create Directory</button>
+        </div>
+    </div>
+</div>
+
+<!-- Rename Modal -->
+<div id="renameModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-pen"></i> Rename VPS</h3>
+            <button class="modal-close" onclick="hideModal('renameModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>New Hostname</label>
+                <input type="text" id="newHostname" class="form-control" value="{{ vps.hostname or vps.container_name }}" placeholder="my-vps">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('renameModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="renameVPS()">
+                <i class="fas fa-check"></i> Rename
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- SSH Loading Modal -->
+<div id="sshLoadingModal" class="modal">
+    <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-body" style="text-align: center; padding: 3rem 2rem;">
+            <div class="loading-spinner" style="margin: 0 auto 1.5rem;">
+                <div class="spinner"></div>
+            </div>
+            <h3 style="margin-bottom: 0.5rem;">Generating SSH Session</h3>
+            <p style="color: var(--text-secondary); margin: 0;">Please wait while we set up your SSH session...</p>
+            <div style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; font-size: 0.875rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <i class="fas fa-check" style="color: var(--accent-success);"></i>
+                    <span>Installing tmate if needed</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                    <i class="fas fa-spinner fa-spin" style="color: var(--accent-primary);"></i>
+                    <span>Creating session</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fas fa-clock" style="color: var(--text-secondary);"></i>
+                    <span>Generating URLs</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SSH Modal -->
+<div id="sshModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-terminal"></i> SSH Access</h3>
+            <button class="modal-close" onclick="hideModal('sshModal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>SSH Command</label>
+                <div style="position: relative;">
+                    <input type="text" id="sshCommand" class="form-control" readonly style="font-family: monospace; padding-right: 40px;">
+                    <button class="copy-btn" onclick="copyToClipboard('sshCommand')" title="Copy">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Web SSH URL</label>
+                <div style="position: relative;">
+                    <input type="text" id="webUrl" class="form-control" readonly style="padding-right: 40px;">
+                    <button class="copy-btn" onclick="copyToClipboard('webUrl')" title="Copy">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="alert-box info">
+                <i class="fas fa-info-circle"></i>
+                <div>
+                    <strong>SSH Session Information</strong>
+                    <p>Use the SSH command in your terminal or click the button below to open Web SSH in your browser.</p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" onclick="hideModal('sshModal')">Close</button>
+            <a id="webSshLink" href="#" target="_blank" class="btn btn-primary">
+                <i class="fas fa-external-link-alt"></i> Open Web SSH
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script>
+    function showTab(tabId) {
+        // Update tabs UI
+        document.querySelectorAll('.tab-modern').forEach(tab => {
+            tab.classList.remove('active');
+        });
+        const clickedTab = Array.from(document.querySelectorAll('.tab-modern')).find(tab => 
+            tab.getAttribute('onclick').includes(`'${tabId}'`)
+        );
+        if (clickedTab) clickedTab.classList.add('active');
+
+        // Update content UI
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.style.display = 'none';
+            content.classList.remove('active');
+        });
+        const activeContent = document.getElementById(`tab-${tabId}`);
+        if (activeContent) {
+            activeContent.style.display = 'block';
+            setTimeout(() => activeContent.classList.add('active'), 10);
+            
+            // Special initialization for specific tabs
+            if (tabId === 'firewall') {
+                loadFirewallRules();
+            }
+            if (tabId === 'files') {
+                loadFiles('/');
+            }
+        }
+    }
+
+    // File Manager functions
+    let currentPath = '/';
+
+    async function loadFiles(path) {
+        currentPath = path;
+        document.getElementById('fileManagerCurrentPath').textContent = path;
+        const tbody = document.getElementById('fileManagerTableBody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 2rem;">Loading...</td></tr>';
+
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/files`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'list', path: path })
+            });
+            const data = await response.json();
+
+            if (data.success) {
+                tbody.innerHTML = data.files.map(file => `
+                    <tr>
+                        <td>
+                            <a href="#" onclick="${file.is_dir ? `loadFiles('${file.path}')` : `editFile('${file.path}')`}" style="color: ${file.is_dir ? 'var(--accent-primary)' : 'var(--text-primary)'};">
+                                <i class="fas ${file.is_dir ? 'fa-folder' : 'fa-file-alt'}" style="margin-right: 0.5rem;"></i>
+                                ${file.name}
+                            </a>
+                        </td>
+                        <td>${file.is_dir ? '-' : formatBytes(file.size)}</td>
+                        <td>${file.mtime}</td>
+                        <td><code>${file.perms}</code></td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteFile('${file.path}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--accent-danger);">${data.error}</td></tr>`;
+            }
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 2rem; color: var(--accent-danger);">Failed to load files.</td></tr>`;
+        }
+    }
+
+    function fileManagerGoUp() {
+        const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
+        loadFiles(parentPath);
+    }
+
+    function showCreateFileModal() { showModal('createFileModal'); }
+    function showCreateDirModal() { showModal('createDirModal'); }
+
+    async function createFile() {
+        const fileName = document.getElementById('newFileName').value;
+        if (!fileName) return;
+
+        const fullPath = `${currentPath}/${fileName}`.replace('//','/');
+        await fileManagerAction('write', fullPath, '');
+        hideModal('createFileModal');
+        loadFiles(currentPath);
+    }
+
+    async function createDirectory() {
+        const dirName = document.getElementById('newDirName').value;
+        if (!dirName) return;
+
+        const fullPath = `${currentPath}/${dirName}`.replace('//','/');
+        await fileManagerAction('create_dir', fullPath);
+        hideModal('createDirModal');
+        loadFiles(currentPath);
+    }
+
+    async function applyDDoSProtection() {
+        if (!confirm('This will apply a set of basic DDoS protection rules. Are you sure?')) return;
+        await fileManagerAction('ddos_protect', '/');
+        showToast('DDoS protection rules are being applied.', 'info');
+        setTimeout(() => loadFirewallRules(), 2000);
+    }
+
+    async function editFile(path) {
+        document.getElementById('fileEditPath').value = path;
+        document.getElementById('fileEditContent').value = 'Loading file content...';
+        showModal('fileEditModal');
+
+        const data = await fileManagerAction('read', path);
+        if (data.success) {
+            document.getElementById('fileEditContent').value = data.content;
+        } else {
+            document.getElementById('fileEditContent').value = `Error: ${data.error}`;
+        }
+    }
+
+    async function saveFileContent() {
+        const path = document.getElementById('fileEditPath').value;
+        const content = document.getElementById('fileEditContent').value;
+        await fileManagerAction('write', path, content);
+        hideModal('fileEditModal');
+    }
+
+    async function deleteFile(path) {
+        if (!confirm(`Are you sure you want to delete ${path}?`)) return;
+        await fileManagerAction('delete', path);
+        loadFiles(currentPath);
+    }
+
+    async function fileManagerAction(action, path, content = null) {
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/files`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, path, content })
+            });
+            const data = await response.json();
+            if (!data.success) {
+                showToast(data.error || `Failed to ${action} ${path}`, 'danger');
+            }
+            return data;
+        } catch (error) {
+            showToast(`An error occurred during ${action}.`, 'danger');
+            return { success: false, error: 'Request failed' };
+        }
+    }
+
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    }
+
+    // Firewall functions
+    function showAddFirewallModal() {
+        showModal('addFirewallModal');
+    }
+
+    async function loadFirewallRules() {
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/firewall`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const tbody = document.getElementById('firewallRulesTableBody');
+                const statusBadge = document.getElementById('firewallStatusBadge');
+                const toggleBtnText = document.getElementById('firewallStatusText');
+                
+                // Update status
+                const isActive = data.firewall_status.includes('active');
+                statusBadge.textContent = data.firewall_status.toUpperCase();
+                statusBadge.className = 'badge ' + (isActive ? 'badge-success' : 'badge-danger');
+                toggleBtnText.textContent = isActive ? 'DISABLE FIREWALL' : 'ENABLE FIREWALL';
+                
+                if (data.rules.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-muted);">No custom firewall rules found.</td></tr>';
+                } else {
+                    tbody.innerHTML = data.rules.map(rule => `
+                        <tr>
+                            <td><span class="badge ${rule.direction === 'in' ? 'badge-info' : 'badge-warning'}">${rule.direction.toUpperCase()}</span></td>
+                            <td><span class="badge">${rule.protocol.toUpperCase()}</span></td>
+                            <td><span class="port-badge">${rule.port_range}</span></td>
+                            <td><code style="font-size: 0.85rem;">${rule.source_ip}</code></td>
+                            <td><span class="badge ${rule.action === 'allow' ? 'badge-success' : 'badge-danger'}">${rule.action.toUpperCase()}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" onclick="deleteFirewallRule(${rule.id})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load firewall rules:', error);
+        }
+    }
+
+    async function toggleFirewall() {
+        const status = document.getElementById('firewallStatusBadge').textContent.toLowerCase();
+        const action = status.includes('active') ? 'disable' : 'enable';
+        
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/firewall/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: action })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadFirewallRules();
+            } else {
+                showToast(data.error, 'danger');
+            }
+        } catch (error) {
+            showToast('Failed to toggle firewall', 'danger');
+        }
+    }
+
+    async function addFirewallRule() {
+        const rule = {
+            direction: document.getElementById('fwDirection').value,
+            protocol: document.getElementById('fwProtocol').value,
+            port_range: document.getElementById('fwPort').value,
+            source_ip: document.getElementById('fwSource').value,
+            action: document.getElementById('fwAction').value
+        };
+
+        if (!rule.port_range) {
+            showToast('Please specify a port or range', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/firewall/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(rule)
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                hideModal('addFirewallModal');
+                loadFirewallRules();
+            } else {
+                showToast(data.error, 'danger');
+            }
+        } catch (error) {
+            showToast('Failed to add firewall rule', 'danger');
+        }
+    }
+
+    async function deleteFirewallRule(ruleId) {
+        if (!confirm('Are you sure you want to delete this rule?')) return;
+
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/firewall/delete/${ruleId}`, {
+                method: 'POST'
+            });
+            const data = await response.json();
+            if (data.success) {
+                showToast(data.message, 'success');
+                loadFirewallRules();
+            } else {
+                showToast(data.error, 'danger');
+            }
+        } catch (error) {
+            showToast('Failed to delete rule', 'danger');
+        }
+    }
+
+    // Modal functions
+    function showModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+    }
+
+    // Control functions
+    async function controlVPS(vpsId, action) {
+        const confirmed = await showConfirm(`Are you sure you want to ${action} this VPS?`, `Confirm ${action.toUpperCase()}`);
+        if (!confirmed) return;
+
+        try {
+            const response = await fetch(`/vps/${vpsId}/control`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `action=${action}`
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                showToast(data.message, 'success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                showToast(data.message, 'danger');
+            }
+        } catch (error) {
+            showToast('An error occurred while controlling the VPS.', 'danger');
+        }
+    }
+
+    // Password functions
+    function togglePasswordVisibility() {
+        const input = document.getElementById('currentPasswordDisplay');
+        const icon = document.getElementById('passwordToggleIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    }
+
+    async function refreshPassword() {
+        const vpsId = '{{ vps.id }}';
+        const displayInput = document.getElementById('currentPasswordDisplay');
+        displayInput.value = 'Fetching...';
+        
+        try {
+            const response = await fetch(`/vps/${vpsId}/password`);
+            const data = await response.json();
+            if (data.status === 'success') {
+                displayInput.value = data.password;
+            } else {
+                displayInput.value = 'Error fetching';
+                showToast(data.message, 'danger');
+            }
+        } catch (error) {
+            displayInput.value = 'Error';
+            showToast('Failed to fetch password.', 'danger');
+        }
+    }
+
+    async function copyPassword() {
+        const displayInput = document.getElementById('currentPasswordDisplay');
+        if (displayInput.value && displayInput.value !== 'Loading...' && displayInput.value !== 'Fetching...') {
+            try {
+                await navigator.clipboard.writeText(displayInput.value);
+                showToast('Password copied to clipboard!', 'success');
+            } catch (err) {
+                showToast('Failed to copy password.', 'danger');
+            }
+        }
+    }
+
+    async function changeVPSPassword(event) {
+        event.preventDefault();
+        const newPass = document.getElementById('newPassword').value;
+        const confirmPass = document.getElementById('confirmPassword').value;
+        
+        if (newPass !== confirmPass) {
+            showToast('Passwords do not match!', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/change-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `password=${encodeURIComponent(newPass)}`
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                showToast('Password changed successfully!', 'success');
+                document.getElementById('newPassword').value = '';
+                document.getElementById('confirmPassword').value = '';
+                refreshPassword();
+            } else {
+                showToast(data.message, 'danger');
+            }
+        } catch (error) {
+            showToast('Failed to change password.', 'danger');
+        }
+    }
+
+    // Initialize password display
+    document.addEventListener('DOMContentLoaded', () => {
+        refreshPassword();
+        
+        // Setup modals backdrop click
+        document.querySelectorAll('.modal').forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) hideModal(modal.id);
+            });
+        });
+
+        // Connectivity Fix: Listen for Socket.IO stats updates
+        if (typeof io !== 'undefined') {
+            const socket = io();
+            socket.on('vps_stats', (data) => {
+                if (data.vps_id == '{{ vps.id }}') {
+                    // Update CPU
+                    const cpuText = document.querySelector(`.vps-cpu-text[data-id="${data.vps_id}"]`);
+                    const cpuBar = document.querySelector(`.vps-cpu[data-id="${data.vps_id}"]`);
+                    if (cpuText) cpuText.innerText = data.stats.cpu.toFixed(1);
+                    if (cpuBar) cpuBar.style.width = data.stats.cpu + '%';
+
+                    // Update RAM
+                    const ramText = document.querySelector(`.vps-ram-text[data-id="${data.vps_id}"]`);
+                    const ramBar = document.querySelector(`.vps-ram[data-id="${data.vps_id}"]`);
+                    if (ramText) ramText.innerText = Math.round(data.stats.ram.used);
+                    if (ramBar) ramBar.style.width = data.stats.ram.pct + '%';
+
+                    // Update Disk
+                    const diskText = document.querySelector(`.vps-disk-text[data-id="${data.vps_id}"]`);
+                    const diskBar = document.querySelector(`.vps-disk[data-id="${data.vps_id}"]`);
+                    if (diskText && data.stats.disk) {
+                        diskText.innerText = data.stats.disk.use_percent;
+                        if (diskBar) diskBar.style.width = data.stats.disk.use_percent.replace('%', '') + '%';
+                    }
+                }
+            });
+        }
+    });
+
+    // Action Grid functions
+    function showReinstallModal() { showModal('reinstallModal'); }
+    function showRenameModal() { showModal('renameModal'); }
+    function showAddPortModal() { showModal('addPortModal'); }
+
+    async function generateSSH() {
+        showModal('sshLoadingModal');
+        try {
+            const response = await fetch(`/vps/{{ vps.id }}/ssh/generate`, { method: 'POST' });
+            const data = await response.json();
+            hideModal('sshLoadingModal');
+            
+            if (data.status === 'success') {
+                document.getElementById('sshCommand').value = data.ssh_command;
+                document.getElementById('webUrl').value = data.web_url;
+                document.getElementById('webSshLink').href = data.web_url;
+                showModal('sshModal');
+            } else {
+                showToast(data.message || 'Failed to generate SSH session.', 'danger');
+            }
+        } catch (error) {
+            hideModal('sshLoadingModal');
+            showToast('An error occurred while generating SSH session.', 'danger');
+        }
+    }
+
+    function copyToClipboard(id) {
+        const input = document.getElementById(id);
+        input.select();
+        document.execCommand('copy');
+        showToast('Copied to clipboard!', 'success');
+    }
+</script>
+
+<style>
+.port-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem 0.75rem;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-family: monospace;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+/* Table Modern */
+.table-modern {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.table-modern thead {
+    background: var(--bg-secondary);
+}
+
+.table-modern th {
+    padding: 0.75rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.table-modern td {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.table-modern tr:hover {
+    background: var(--bg-secondary);
+}
+
+/* Danger Zone */
+.danger-zone {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.danger-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.danger-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.danger-desc {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+/* Empty States */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--text-secondary);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state h3 {
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    margin-bottom: 1.5rem;
+}
+
+.empty-state-small {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+.empty-state-small .empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 1rem;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: var(--text-secondary);
+}
+
+.empty-state-small h4 {
+    margin-bottom: 0.5rem;
+}
+
+.empty-state-small p {
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* Copy Button */
+.copy-btn {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--accent-primary);
+    border: none;
+    color: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.copy-btn:hover {
+    background: var(--accent-primary-hover);
+}
+
+/* Pulse Badge */
+.pulse-badge {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.spinner {
+    width: 100%;
+    height: 100%;
+    border: 4px solid var(--bg-tertiary);
+    border-top: 4px solid var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .grid-2, .grid-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .action-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .tabs-modern {
+        overflow-x: auto;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+/* global showToast, Chart */
+const vpsId = {{ vps.id }};
+let cpuChart, ramChart, networkChart;
+let cpuData = [], ramData = [], networkRxData = [], networkTxData = [];
+let timeLabels = [];
+const maxDataPoints = 20;
+
+// Tab switching
+function showTab(tabName) {
+    document.querySelectorAll('.tab-modern').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+    
+    document.querySelector(`.tab-modern[onclick="showTab('${tabName}')"]`).classList.add('active');
+    document.getElementById(`tab-${tabName}`).style.display = 'block';
+    
+    // Initialize charts when performance tab is shown
+    if (tabName === 'performance' && !cpuChart) {
+        setTimeout(initCharts, 100);
+    }
+}
+
+// VPS Control
+async function controlVPS(id, action) {
+    const confirmed = await showConfirm(`Are you sure you want to ${action} this VPS?`, 'VPS Control', 'fa-server');
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/vps/${id}/control/${action}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(data.message, 'success');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            const errorMsg = data.error || 'Operation failed';
+            showToast(errorMsg, 'error');
+        }
+    } catch (error) {
+        const errorMsg = 'Failed to control VPS: ' + error.message;
+        showToast(errorMsg, 'error');
+    }
+}
+
+// Modal functions
+function showModal(modalId) {
+    document.getElementById(modalId).classList.add('show');
+}
+
+function hideModal(modalId) {
+    document.getElementById(modalId).classList.remove('show');
+}
+
+function showAddPortModal() {
+    showModal('addPortModal');
+}
+
+function showReinstallModal() {
+    showModal('reinstallModal');
+}
+
+function showRenameModal() {
+    showModal('renameModal');
+}
+
+// Copy to clipboard
+function copyToClipboard(elementId) {
+    const element = document.getElementById(elementId);
+    element.select();
+    element.setSelectionRange(0, 99999);
+    document.execCommand('copy');
+    showToast('Copied to clipboard!', 'success');
+}
+
+// Generate SSH Session
+async function generateSSH() {
+    // Show loading modal
+    showModal('sshLoadingModal');
+    
+    try {
+        const response = await fetch(`/vps/${vpsId}/ssh`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        // Hide loading modal
+        hideModal('sshLoadingModal');
+        
+        if (data.success) {
+            document.getElementById('sshCommand').value = data.ssh_url || '';
+            document.getElementById('webUrl').value = data.web_url || '';
+            
+            const webLink = document.getElementById('webSshLink');
+            if (webLink) webLink.href = data.web_url || '#';
+            
+            showModal('sshModal');
+            showToast('SSH session generated successfully', 'success');
+        } else {
+            const errorMsg = data.error || 'Failed to generate SSH session';
+            showToast(errorMsg, 'error');
+        }
+    } catch (error) {
+        hideModal('sshLoadingModal');
+        const errorMsg = 'Failed to generate SSH: ' + error.message;
+        showToast(errorMsg, 'error');
+    }
+}
+
+// Install sshx (web-based terminal sharing)
+async function installSshx() {
+    showToast('Installing sshx on your VPS...', 'info');
+    try {
+        const response = await fetch(`/vps/${vpsId}/install-sshx`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await response.json();
+        if (data.success) {
+            const url = data.url || '';
+            const msg = url
+                ? `sshx installed! Share URL: <a href="${url}" target="_blank">${url}</a>`
+                : 'sshx installed successfully.';
+            showToast(msg, 'success');
+            if (url) {
+                prompt('sshx share URL (copy this):', url);
+            }
+        } else {
+            showToast(data.error || 'Failed to install sshx', 'danger');
+        }
+    } catch (e) {
+        showToast('Error: ' + e.message, 'danger');
+    }
+}
+
+// Add Port
+async function addPort() {
+    const vpsPort = document.getElementById('vpsPort').value;
+    const protocol = document.getElementById('portProtocol').value;
+    const description = document.getElementById('portDescription').value;
+    
+    if (!vpsPort) {
+        showToast('Please enter a VPS port', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/ports/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                vps_id: vpsId,
+                vps_port: parseInt(vpsPort),
+                protocol: protocol,
+                description: description
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Port forward added successfully', 'success');
+            hideModal('addPortModal');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to add port forward', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to add port: ' + error.message, 'error');
+    }
+}
+
+// Remove Port
+async function removePort(forwardId) {
+    const confirmed = await showConfirm('Are you sure you want to remove this port forward?', 'Remove Port', 'fa-trash');
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/ports/remove/${forwardId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Port forward removed successfully', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to remove port forward', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to remove port: ' + error.message, 'error');
+    }
+}
+
+// Reinstall VPS
+async function reinstallVPS() {
+    const osVersion = document.getElementById('osVersion').value;
+    
+    const confirmed = await showConfirm('Are you sure? This will delete all data on the VPS!', 'Reinstall VPS', 'fa-redo');
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/vps/${vpsId}/reinstall`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ os_version: osVersion })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('VPS reinstallation started', 'success');
+            hideModal('reinstallModal');
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showToast(data.error || 'Failed to reinstall VPS', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to reinstall: ' + error.message, 'error');
+    }
+}
+
+// Rename VPS
+async function renameVPS() {
+    const newHostname = document.getElementById('newHostname').value.trim();
+    
+    if (!newHostname) {
+        showToast('Please enter a hostname', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/vps/${vpsId}/rename`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ hostname: newHostname })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('VPS renamed successfully', 'success');
+            hideModal('renameModal');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to rename VPS', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to rename: ' + error.message, 'error');
+    }
+}
+
+// Password Management Functions
+let currentPassword = '';
+let passwordVisible = false;
+
+// Load current password on page load
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('tab-settings')) {
+        loadCurrentPassword();
+    }
+});
+
+// Load current VPS password
+async function loadCurrentPassword() {
+    try {
+        const response = await fetch(`/vps/${vpsId}/password`);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPassword = data.password || 'root';
+            document.getElementById('currentPasswordDisplay').value = '••••••••••••';
+            
+            // Show note if provided
+            if (data.note) {
+                showToast(data.note, 'info');
+            }
+        } else {
+            currentPassword = 'root';
+            document.getElementById('currentPasswordDisplay').value = '••••••••••••';
+            showToast(data.error || 'Failed to load password', 'warning');
+        }
+    } catch (error) {
+        console.error('Load password error:', error);
+        // Set default password on error
+        currentPassword = 'root';
+        document.getElementById('currentPasswordDisplay').value = '••••••••••••';
+        showToast('Using default password (root)', 'info');
+    }
+}
+
+// Refresh password from VPS
+async function refreshPassword() {
+    showLoading();
+    try {
+        const response = await fetch(`/vps/${vpsId}/password/refresh`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPassword = data.password || 'root';
+            
+            // Update display based on current visibility state
+            const input = document.getElementById('currentPasswordDisplay');
+            if (passwordVisible) {
+                input.value = currentPassword;
+            } else {
+                input.value = '••••••••••••';
+            }
+            
+            if (data.note) {
+                showToast(data.note, 'info');
+            } else {
+                showToast('Password refreshed successfully', 'success');
+            }
+        } else {
+            showToast(data.error || 'Failed to refresh password', 'danger');
+        }
+    } catch (error) {
+        console.error('Refresh password error:', error);
+        showToast('Failed to refresh password. Please try again.', 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Toggle password visibility
+function togglePasswordVisibility() {
+    const input = document.getElementById('currentPasswordDisplay');
+    const icon = document.getElementById('passwordToggleIcon');
+    
+    if (!currentPassword) {
+        showToast('Password not loaded yet', 'warning');
+        return;
+    }
+    
+    passwordVisible = !passwordVisible;
+    
+    if (passwordVisible) {
+        input.type = 'text';
+        input.value = currentPassword;
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        input.value = '••••••••••••';
+        icon.className = 'fas fa-eye';
+    }
+}
+
+// Copy password to clipboard
+function copyPassword() {
+    if (!currentPassword) {
+        showToast('No password to copy', 'warning');
+        return;
+    }
+    
+    navigator.clipboard.writeText(currentPassword).then(() => {
+        showToast('Password copied to clipboard', 'success');
+    }).catch(() => {
+        showToast('Failed to copy password', 'danger');
+    });
+}
+
+// Change VPS password
+async function changeVPSPassword(event) {
+    event.preventDefault();
+    
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+        showToast('Passwords do not match', 'warning');
+        return;
+    }
+    
+    // Validate password length
+    if (newPassword.length < 8) {
+        showToast('Password must be at least 8 characters', 'warning');
+        return;
+    }
+    
+    showLoading();
+    
+    try {
+        const response = await fetch(`/vps/${vpsId}/password/change`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password: newPassword })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentPassword = newPassword;
+            
+            // Update display based on current visibility state
+            const input = document.getElementById('currentPasswordDisplay');
+            if (passwordVisible) {
+                input.value = currentPassword;
+            } else {
+                input.value = '••••••••••••';
+            }
+            
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+            showToast('Password changed successfully', 'success');
+        } else {
+            showToast(data.error || 'Failed to change password', 'danger');
+        }
+    } catch (error) {
+        console.error('Change password error:', error);
+        showToast('Failed to change password. Please try again.', 'danger');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Delete VPS
+async function deleteVPS() {
+    const confirmed1 = await showConfirm('Are you sure you want to delete this VPS? This action cannot be undone!', 'Delete VPS', 'fa-trash-alt');
+    if (!confirmed1) {
+        return;
+    }
+    
+    const confirmed2 = await showConfirm('This will permanently delete all data. Are you absolutely sure?', 'Final Warning', 'fa-exclamation-triangle');
+    if (!confirmed2) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/vps/${vpsId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('VPS deleted successfully', 'success');
+            setTimeout(() => window.location.href = '/vps', 2000);
+        } else {
+            showToast(data.error || 'Failed to delete VPS', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to delete VPS: ' + error.message, 'error');
+    }
+}
+
+// Suspend VPS
+async function suspendVPS() {
+    const confirmed = await showConfirm('Are you sure you want to suspend this VPS?', 'Suspend VPS', 'fa-pause-circle');
+    if (!confirmed) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/admin/vps/${vpsId}/suspend`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('VPS suspended successfully', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to suspend VPS', 'error');
+        }
+    } catch (error) {
+        showToast('Failed to suspend VPS: ' + error.message, 'error');
+    }
+}
+
+// Initialize Charts
+function initCharts() {
+    const chartConfig = {
+        type: 'line',
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true,
+                    labels: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary')
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                    },
+                    ticks: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
+                    }
+                },
+                x: {
+                    grid: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--border-color')
+                    },
+                    ticks: {
+                        color: getComputedStyle(document.documentElement).getPropertyValue('--text-secondary')
+                    }
+                }
+            }
+        }
+    };
+    
+    // CPU Chart
+    const cpuCtx = document.getElementById('cpuChart');
+    if (cpuCtx) {
+        cpuChart = new Chart(cpuCtx, {
+            ...chartConfig,
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'CPU Usage (%)',
+                    data: cpuData,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                ...chartConfig.options,
+                scales: {
+                    ...chartConfig.options.scales,
+                    y: {
+                        ...chartConfig.options.scales.y,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+    
+    // RAM Chart
+    const ramCtx = document.getElementById('ramChart');
+    if (ramCtx) {
+        ramChart = new Chart(ramCtx, {
+            ...chartConfig,
+            data: {
+                labels: timeLabels,
+                datasets: [{
+                    label: 'RAM Usage (%)',
+                    data: ramData,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                ...chartConfig.options,
+                scales: {
+                    ...chartConfig.options.scales,
+                    y: {
+                        ...chartConfig.options.scales.y,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+    
+    // Network Chart
+    const networkCtx = document.getElementById('networkChart');
+    if (networkCtx) {
+        networkChart = new Chart(networkCtx, {
+            ...chartConfig,
+            data: {
+                labels: timeLabels,
+                datasets: [
+                    {
+                        label: 'RX (Received)',
+                        data: networkRxData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'TX (Transmitted)',
+                        data: networkTxData,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            }
+        });
+    }
+    
+    // Start updating charts
+    updateCharts();
+}
+
+// Update Charts
+async function updateCharts() {
+    try {
+        const response = await fetch(`/vps/${vpsId}/stats`);
+        const data = await response.json();
+        
+        if (data.success && data.stats.status === 'running') {
+            const now = new Date().toLocaleTimeString();
+            
+            // Add new data
+            timeLabels.push(now);
+            cpuData.push(data.stats.cpu || 0);
+            ramData.push(data.stats.ram?.pct || 0);
+            
+            // Parse network data (e.g., "1.2 MB" -> 1.2)
+            const rxMatch = (data.stats.network?.rx || '0').match(/[\d.]+/);
+            const txMatch = (data.stats.network?.tx || '0').match(/[\d.]+/);
+            networkRxData.push(rxMatch ? parseFloat(rxMatch[0]) : 0);
+            networkTxData.push(txMatch ? parseFloat(txMatch[0]) : 0);
+            
+            // Keep only last N data points
+            if (timeLabels.length > maxDataPoints) {
+                timeLabels.shift();
+                cpuData.shift();
+                ramData.shift();
+                networkRxData.shift();
+                networkTxData.shift();
+            }
+            
+            // Update charts
+            if (cpuChart) cpuChart.update();
+            if (ramChart) ramChart.update();
+            if (networkChart) networkChart.update();
+            
+            // Update resource cards
+            updateResourceCards(data.stats);
+        }
+    } catch (error) {
+        console.error('Failed to update charts:', error);
+    }
+    
+    // Update every 5 seconds
+    setTimeout(updateCharts, 5000);
+}
+
+// Update Resource Cards
+function updateResourceCards(stats) {
+    // Update CPU
+    const cpuElements = document.querySelectorAll('.vps-cpu[data-id="' + vpsId + '"]');
+    cpuElements.forEach(el => {
+        el.textContent = (stats.cpu || 0).toFixed(1) + '%';
+    });
+    
+    const cpuProgress = document.querySelector('.cpu-progress');
+    if (cpuProgress) {
+        cpuProgress.style.width = (stats.cpu || 0) + '%';
+    }
+    
+    // Update RAM
+    const ramPctElements = document.querySelectorAll('.vps-ram-pct[data-id="' + vpsId + '"]');
+    ramPctElements.forEach(el => {
+        el.textContent = (stats.ram?.pct || 0).toFixed(1) + '%';
+    });
+    
+    const ramUsedElements = document.querySelectorAll('.vps-ram-used[data-id="' + vpsId + '"]');
+    ramUsedElements.forEach(el => {
+        el.textContent = Math.round(stats.ram?.used || 0) + 'MB / ' + (stats.ram?.total || 0) + 'MB';
+    });
+    
+    const ramProgress = document.querySelector('.ram-progress');
+    if (ramProgress) {
+        ramProgress.style.width = (stats.ram?.pct || 0) + '%';
+    }
+    
+    // Update Disk
+    const diskElements = document.querySelectorAll('.vps-disk[data-id="' + vpsId + '"]');
+    diskElements.forEach(el => {
+        el.textContent = stats.disk?.use_percent || 'N/A';
+    });
+    
+    const diskProgress = document.querySelector('.disk-progress');
+    if (diskProgress && stats.disk?.use_percent) {
+        const diskPct = parseFloat(stats.disk.use_percent.replace('%', ''));
+        diskProgress.style.width = diskPct + '%';
+    }
+}
+
+// Refresh Charts
+function refreshCharts() {
+    cpuData = [];
+    ramData = [];
+    networkRxData = [];
+    networkTxData = [];
+    timeLabels = [];
+    
+    if (cpuChart) cpuChart.update();
+    if (ramChart) ramChart.update();
+    if (networkChart) networkChart.update();
+    
+    showToast('Charts refreshed', 'success');
+}
+
+// Close modals when clicking outside
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.classList.remove('show');
+    }
+}
+
+// Escape key to close modals
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        document.querySelectorAll('.modal.show').forEach(modal => {
+            modal.classList.remove('show');
+        });
+    }
+});
+
+// Auto-update stats every 10 seconds
+{% if stats.status == 'running' %}
+setInterval(async () => {
+    try {
+        const response = await fetch(`/vps/${vpsId}/stats`);
+        const data = await response.json();
+        
+        if (data.success && data.stats.status === 'running') {
+            updateResourceCards(data.stats);
+        }
+    } catch (error) {
+        console.error('Failed to update stats:', error);
+    }
+}, 10000);
+{% endif %}
+</script>
+
+{% endblock %}

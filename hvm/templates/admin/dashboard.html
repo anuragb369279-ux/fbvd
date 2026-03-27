@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - {{ panel_name }}{% endblock %}
+
+{% block header_title %}Administration{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumb">
+    <a href="{{ url_for('dashboard') }}" class="breadcrumb-item">Dashboard</a>
+    <span class="breadcrumb-separator"><i class="fas fa-chevron-right"></i></span>
+    <span class="breadcrumb-item active">Admin</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Welcome Header -->
+<div class="welcome-header floating" style="margin-bottom: 2.5rem; position: relative; overflow: hidden; padding: 3.5rem; border-radius: var(--border-radius-lg); background: linear-gradient(135deg, rgba(0, 242, 255, 0.1), rgba(0, 162, 255, 0.05)); border: 1px solid rgba(0, 242, 255, 0.1);">
+    <div class="cyber-grid"></div>
+    <div style="position: relative; z-index: 1;">
+        <h2 style="font-size: 2.5rem; font-weight: 900; letter-spacing: -1px; margin-bottom: 0.5rem; background: linear-gradient(to right, #fff, var(--accent-primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SYSTEM OVERVIEW</h2>
+        <p style="color: var(--text-secondary); font-size: 1.1rem; max-width: 600px;">Managing <span style="color: var(--accent-primary); font-weight: 700;">{{ total_vps }}</span> containers across <span style="color: var(--accent-success); font-weight: 700;">{{ total_nodes }}</span> active nodes.</p>
+    </div>
+</div>
+
+<style>
+.cyber-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: radial-gradient(var(--accent-primary) 1px, transparent 1px);
+    background-size: 30px 30px;
+    opacity: 0.05;
+}
+.admin-stat-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--card-border);
+    border-radius: var(--border-radius);
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.admin-stat-card:hover {
+    transform: translateY(-10px);
+    border-color: var(--accent-primary);
+    box-shadow: 0 10px 30px rgba(0, 242, 255, 0.1);
+}
+.admin-stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--accent-primary);
+    opacity: 0.5;
+}
+.stat-icon-large {
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+    opacity: 0.8;
+}
+.stat-value-large {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+.stat-label-large {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+</style>
+
+<!-- High-Fidelity Stats -->
+<div class="grid grid-4" style="margin-bottom: 3rem;">
+    <div class="admin-stat-card">
+        <i class="fas fa-users stat-icon-large" style="color: var(--accent-primary);"></i>
+        <div class="stat-value-large">{{ total_users }}</div>
+        <div class="stat-label-large">Global Users</div>
+    </div>
+
+    <div class="admin-stat-card" style="--accent-primary: var(--accent-success);">
+        <i class="fas fa-server stat-icon-large" style="color: var(--accent-success);"></i>
+        <div class="stat-value-large">{{ total_vps }}</div>
+        <div class="stat-label-large">Total Instances</div>
+        <div style="margin-top: 1rem; font-size: 0.85rem; color: var(--accent-success);">{{ running_vps }} Operational</div>
+    </div>
+
+    <div class="admin-stat-card" style="--accent-primary: var(--accent-warning);">
+        <i class="fas fa-ban stat-icon-large" style="color: var(--accent-warning);"></i>
+        <div class="stat-value-large">{{ suspended_vps }}</div>
+        <div class="stat-label-large">Suspended</div>
+    </div>
+
+    <div class="admin-stat-card" style="--accent-primary: var(--accent-danger);">
+        <i class="fas fa-plug stat-icon-large" style="color: var(--accent-danger);"></i>
+        <div class="stat-value-large">{{ (used_ports / total_ports * 100)|round(0) }}%</div>
+        <div class="stat-label-large">Port Saturation</div>
+    </div>
+</div>
+
+<!-- System Health & Actions -->
+<div class="grid grid-2" style="margin-bottom: 3rem; gap: 2rem;">
+    <div class="glass-card" style="padding: 2.5rem;">
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem;">
+            <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--accent-success); box-shadow: 0 0 10px var(--accent-success);"></div>
+            <h3 style="font-size: 1.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Hardware Matrix</h3>
+        </div>
+        
+        <!-- CPU -->
+        <div style="margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span style="font-weight: 700; color: var(--text-secondary);">CENTRAL PROCESSING</span>
+                <span style="font-family: var(--font-mono); color: var(--accent-primary);">{{ host_stats.cpu|round(1) }}%</span>
+            </div>
+            <div class="progress" style="height: 6px; background: rgba(255,255,255,0.05);">
+                <div class="progress-bar" style="width: {{ host_stats.cpu }}%; background: linear-gradient(to right, var(--accent-primary), var(--accent-info)); box-shadow: 0 0 15px var(--accent-primary);"></div>
+            </div>
+        </div>
+
+        <!-- RAM -->
+        <div style="margin-bottom: 2rem;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span style="font-weight: 700; color: var(--text-secondary);">MEMORY ALLOCATION</span>
+                <span style="font-family: var(--font-mono); color: var(--accent-success);">{{ host_stats.ram.percent|round(1) }}%</span>
+            </div>
+            <div class="progress" style="height: 6px; background: rgba(255,255,255,0.05);">
+                <div class="progress-bar" style="width: {{ host_stats.ram.percent }}%; background: linear-gradient(to right, var(--accent-success), #00ffcc); box-shadow: 0 0 15px var(--accent-success);"></div>
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; text-align: right;">{{ host_stats.ram.used }}MB / {{ host_stats.ram.total }}MB UTILIZED</div>
+        </div>
+
+        <!-- Disk -->
+        <div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem;">
+                <span style="font-weight: 700; color: var(--text-secondary);">STORAGE CLUSTER</span>
+                <span style="font-family: var(--font-mono); color: var(--accent-warning);">{{ host_stats.disk.percent }}</span>
+            </div>
+            <div class="progress" style="height: 6px; background: rgba(255,255,255,0.05);">
+                <div class="progress-bar" style="width: {{ host_stats.disk.percent|replace('%','') }}%; background: linear-gradient(to right, var(--accent-warning), #ff6600); box-shadow: 0 0 15px var(--accent-warning);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Futuristic Quick Actions -->
+    <div class="glass-card" style="padding: 2.5rem; background: rgba(0,0,0,0.2);">
+        <h3 style="font-size: 1.5rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2.5rem;">Command Center</h3>
+        <div class="grid grid-2" style="gap: 1.25rem;">
+            <a href="{{ url_for('admin_vps_create') }}" class="btn btn-glow-primary" style="height: 60px; display: flex; align-items: center; justify-content: center; gap: 0.75rem;">
+                <i class="fas fa-plus"></i> DEPLOY
+            </a>
+            <a href="{{ url_for('admin_users') }}" class="btn btn-outline" style="height: 60px; border-width: 2px; font-weight: 700;">
+                <i class="fas fa-users"></i> USERS
+            </a>
+            <a href="{{ url_for('admin_nodes') }}" class="btn btn-outline" style="height: 60px; border-width: 2px; font-weight: 700;">
+                <i class="fas fa-network-wired"></i> NODES
+            </a>
+            <a href="{{ url_for('admin_settings') }}" class="btn btn-outline" style="height: 60px; border-width: 2px; font-weight: 700;">
+                <i class="fas fa-cog"></i> SYSTEM
+            </a>
+            <button class="btn btn-warning" onclick="runResourceCheck()" style="height: 60px; font-weight: 700; background: rgba(245, 158, 11, 0.1); border: 1px solid var(--accent-warning);">
+                <i class="fas fa-search"></i> SCAN
+            </button>
+            <button class="btn btn-danger" onclick="emergencyStopAll()" style="height: 60px; font-weight: 700; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--accent-danger);">
+                <i class="fas fa-stop-circle"></i> KILL ALL
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Node Status -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-network-wired"></i>
+            Node Status
+        </h3>
+        <button class="btn btn-sm btn-outline" onclick="refreshNodes()">
+            <i class="fas fa-sync-alt"></i> Refresh
+        </button>
+    </div>
+
+    <div class="grid grid-3">
+        {% for node in node_status %}
+        <div class="stat-card" style="padding: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem; width: 100%;">
+                <div class="stat-icon {% if node.online %}success{% else %}danger{% endif %}" style="width: 40px; height: 40px;">
+                    <i class="fas fa-{% if node.online %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+                </div>
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-weight: 600;">{{ node.name }}</span>
+                        <span class="badge badge-{{ 'success' if node.online else 'danger' }}">
+                            {{ node.status }}
+                        </span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">{{ node.location }}</div>
+                    <div style="margin-top: 0.5rem;">
+                        <span class="badge badge-info">{{ node.vps_count }}/{{ node.total_vps }} VPS</span>
+                        {% if node.online and node.stats %}
+                        <span class="badge" style="background-color: var(--bg-tertiary);">
+                            CPU: {{ node.stats.cpu|round(1) }}%
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% if node.online and node.stats %}
+            <div style="margin-top: 1rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem;">
+                    <span>RAM: {{ node.stats.ram.percent|round(1) }}%</span>
+                    <span>Disk: {{ node.stats.disk.percent }}</span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-history"></i>
+            Recent Activity
+        </h3>
+    </div>
+
+    {% if recent_activity %}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Resource Details</th>
+                    <th>IP</th>
+                    <th>Time</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for activity in recent_activity %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div class="user-avatar" style="width: 24px; height: 24px; font-size: 0.7rem;">
+                                {{ activity.username[:1].upper() if activity.username else '?' }}
+                            </div>
+                            <span>{{ activity.username or 'System' }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge badge-info">{{ activity.action }}</span>
+                    </td>
+                    <td>
+                        <div style="font-size: 0.85rem;">
+                            {% if activity.resource_type %}
+                            <span style="color: var(--accent-primary);">{{ activity.resource_type }} #{{ activity.resource_id }}</span>
+                            {% endif %}
+                            {% if activity.details %}
+                            <div style="color: var(--text-secondary); margin-top: 0.25rem;">{{ activity.details|truncate(100) }}</div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>{{ activity.ip_address or '-' }}</td>
+                    <td>{{ activity.created_at|relative_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-history"></i>
+        <p>No activity recorded yet</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Run resource check
+    async function runResourceCheck() {
+        const confirmed = await showConfirm('Run resource check on all VPS? This may suspend VPS with high usage.', 'Resource Check', 'fa-search');
+        if (!confirmed) {
+            return;
+        }
+
+        showLoading();
+
+        try {
+            const response = await fetch('/admin/resource-check', {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(`Resource check complete. ${result.suspended} VPS suspended.`, 'success');
+            } else {
+                showToast(result.error || 'Resource check failed', 'danger');
+            }
+        } catch (error) {
+            console.error('Resource check error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Emergency stop all VPS
+    async function emergencyStopAll() {
+        const confirmed = await showConfirm('WARNING: This will stop ALL running VPS. Are you absolutely sure?', 'Emergency Stop', 'fa-stop-circle');
+        if (!confirmed) {
+            return;
+        }
+
+        showLoading();
+
+        try {
+            const response = await fetch('/admin/emergency-stop-all', {
+                method: 'POST'
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                showToast(`Emergency stop complete. ${result.stopped} VPS stopped.`, 'warning');
+            } else {
+                showToast(result.error || 'Emergency stop failed', 'danger');
+            }
+        } catch (error) {
+            console.error('Emergency stop error:', error);
+            showToast('Network error: ' + error.message, 'danger');
+        } finally {
+            hideLoading();
+        }
+    }
+
+    // Refresh nodes
+    function refreshNodes() {
+        showLoading();
+        window.location.reload();
+    }
+</script>
+{% endblock %}

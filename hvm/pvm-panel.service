@@ -1,0 +1,22 @@
+[Unit]
+Description=PVM Panel - VPS Management
+After=network.target lxd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/hvm
+ExecStart=/usr/bin/python3 /root/hvm/hvm.py
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+StandardOutput=append:/root/hvm/hvm.log
+StandardError=append:/root/hvm/hvm.log
+Environment=PYTHONUNBUFFERED=1
+KillMode=mixed
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
