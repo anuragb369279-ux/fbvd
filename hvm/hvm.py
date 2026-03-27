@@ -972,69 +972,8 @@ def get_unread_notifications_count(user_id: int):
 
 # License key validation
 def is_license_activated():
-    """Check if the panel license is activated and valid"""
-    try:
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT * FROM license WHERE is_activated = 1 LIMIT 1')
-            row = cur.fetchone()
-            
-            if not row:
-                return False
-            
-            license_data = dict(row)
-            license_data['is_activated'] = bool(license_data['is_activated'])
-            
-            # Re-validate with remote server every 12 hours
-            last_val_str = license_data.get('last_validation')
-            if last_val_str:
-                last_val = datetime.fromisoformat(last_val_str)
-                if datetime.now() - last_val < timedelta(hours=12):
-                    return True # Valid locally for 12 hours
-            
-            # Perform remote validation
-            license_key = license_data['license_key']
-            hwid = get_hwid()
-            url = f"{LICENSE_SERVER_URL}/api/validate/{license_key}"
-            params = {"hwid": hwid, "port": str(PORT), "dev": f"PVM-PANEL-{PANEL_VERSION}"}
-            headers = {"User-Agent": "PVM-Panel-Validator", "Accept": "application/json"}
-            
-            try:
-                response = requests.get(url, params=params, headers=headers, timeout=10)
-                
-                # Only process if we got a JSON response
-                try:
-                    data = response.json()
-                except:
-                    logger.warning(f"License server returned non-JSON response: {response.status_code}")
-                    return True # Assume valid if server is misbehaving
-                
-                if data.get('success'):
-                    # Update local last_validation time
-                    cur.execute('UPDATE license SET last_validation = ?, tier = ? WHERE license_key = ?',
-                               (datetime.now().isoformat(), data.get('tier'), license_key))
-                    conn.commit()
-                    return True
-                elif data.get('success') is False:
-                    # Explicitly rejected by server
-                    logger.error(f"License invalidated by remote server: {data.get('message')}")
-                    cur.execute('UPDATE license SET is_activated = 0 WHERE license_key = ?', (license_key,))
-                    conn.commit()
-                    send_discord_notification(f"License **{license_key}** has been invalidated: {data.get('message')}", 
-                                             title="License Alert: Invalidated", color=0xef4444)
-                    return False
-                else:
-                    # Unknown response (e.g. success field missing)
-                    logger.warning(f"License server returned ambiguous response: {data}")
-                    return True # Assume valid locally
-            except Exception as e:
-                logger.warning(f"Failed to reach license server for re-validation: {e}")
-                # Allow if we have a local activation and server is just down
-                return True
-                
-    except Exception as e:
-        logger.error(f"Error checking license status: {e}")
-        return False
+    """License check — always returns True for self-hosted use"""
+    return True
 
 def activate_license(license_key: str, activated_by: str = 'system') -> Tuple[bool, str]:
     """Activate the panel with the provided license key by calling the license server"""
