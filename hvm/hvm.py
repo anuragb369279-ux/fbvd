@@ -8056,7 +8056,7 @@ def admin_vps_create():
     os_version = data.get('os_version', 'ubuntu:22.04')
     hostname = data.get('hostname')
     ip_address_type = data.get('ip_address_type', 'shared')
-    ip_address = data.get('dedicated_ip', '').strip() or data.get('ip_address', '').strip() or None
+    ip_address = (data.get('dedicated_ip') or data.get('ip_address') or '').strip() or None
     bandwidth_limit = int(data.get('bandwidth_limit', 0) or 0)
     expiration_days = int(data.get('expiration_days', 0))
     auto_suspend_enabled = bool(data.get('auto_suspend_enabled', False))
