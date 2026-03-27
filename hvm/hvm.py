@@ -8042,9 +8042,14 @@ def admin_vps_create():
                               nodes=nodes,
                               os_options=OS_OPTIONS)
     
-    data = request.get_json()
-    user_id = data.get('user_id')
-    node_id = data.get('node_id')
+    data = request.get_json(silent=True) or request.form.to_dict()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data received'}), 400
+    try:
+        user_id = int(data.get('user_id'))
+        node_id = int(data.get('node_id'))
+    except (TypeError, ValueError):
+        return jsonify({'success': False, 'error': 'Invalid user_id or node_id'}), 400
     ram = int(data.get('ram', 2))
     cpu = int(data.get('cpu', 2))
     disk = int(data.get('disk', 20))
@@ -8118,7 +8123,7 @@ def admin_vps_create():
         create_notification(user_id, 'success', 'VPS Created', f'Your VPS {container_name} has been created by an administrator.')
         return jsonify({'success': True, 'vps_id': vps_id, 'container_name': container_name})
     except Exception as e:
-        logger.error(f"VPS creation error: {e}")
+        logger.error(f"VPS creation error: {e}", exc_info=True)
         try:
             run_sync(execute_lxc(container_name, f"delete {container_name} --force", node_id=node_id))
         except:
