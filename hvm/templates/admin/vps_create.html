@@ -281,9 +281,7 @@
         try {
             const response = await fetch('/admin/vps/create', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: parseInt(user_id),
                     node_id: parseInt(node_id),
@@ -299,6 +297,14 @@
                 })
             });
 
+            // Guard against non-JSON responses (e.g. 500 HTML error pages)
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const text = await response.text();
+                console.error('Non-JSON response:', text.substring(0, 500));
+                showToast('Server error (HTTP ' + response.status + '). Check server logs.', 'danger');
+                return;
+            }
             const result = await response.json();
 
             if (result.success) {

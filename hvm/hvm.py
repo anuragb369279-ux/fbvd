@@ -1087,27 +1087,52 @@ async def apply_lxc_config(container_name: str, node_id: int):
         await execute_lxc(container_name, f"config set {container_name} security.syscalls.intercept.mknod true", node_id=node_id)
         await execute_lxc(container_name, f"config set {container_name} security.syscalls.intercept.setxattr true", node_id=node_id)
         await execute_lxc(container_name, f"config set {container_name} linux.kernel_modules overlay,loop,nf_nat,ip_tables,ip6_tables,netlink_diag,br_netfilter", node_id=node_id)
-        
+
         try:
             await execute_lxc(container_name, f"config device add {container_name} fuse unix-char path=/dev/fuse", node_id=node_id)
         except Exception as e:
             logger.warning(f"Could not add fuse device for {container_name}: {e}")
-        
-        raw_lxc_config = (
-            "lxc.apparmor.profile = unconfined\n"
-            "lxc.apparmor.allow_nesting = 1\n"
-            "lxc.apparmor.allow_incomplete = 1\n"
-            "\n"
-            "lxc.cap.drop =\n"
-            "lxc.cgroup.devices.allow = a\n"
-            "lxc.cgroup2.devices.allow = a\n"
-            "\n"
-            "lxc.mount.auto = proc:rw sys:rw cgroup:rw shmounts:rw\n"
-            "\n"
-            "lxc.mount.entry = /dev/fuse dev/fuse none bind,create=file 0 0\n"
-        )
-        await execute_lxc(container_name, f"config set {container_name} raw.lxc '{raw_lxc_config}'", node_id=node_id)
-        
+
+        # Write raw.lxc config line-by-line to avoid shell quoting/newline issues
+        raw_lines = [
+            "lxc.apparmor.profile = unconfined",
+            "lxc.apparmor.allow_nesting = 1",
+            "lxc.apparmor.allow_incomplete = 1",
+            "lxc.cap.drop =",
+            "lxc.cgroup.devices.allow = a",
+            "lxc.cgroup2.devices.allow = a",
+            "lxc.mount.auto = proc:rw sys:rw cgroup:rw shmounts:rw",
+            "lxc.mount.entry = /dev/fuse dev/fuse none bind,create=file 0 0",
+        ]
+        raw_lxc_config = "\n".join(raw_lines)
+
+        # Use base64 to safely pass the multiline config through the shell
+        import base64 as _b64
+        raw_b64 = _b64.b64encode(raw_lxc_config.encode()).decode()
+        node = get_node(node_id)
+        if node and node['is_local']:
+            # For local nodes: pass the config directly via subprocess args (no shell quoting issues)
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    'lxc', 'config', 'set', container_name, 'raw.lxc', raw_lxc_config,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                if proc.returncode != 0:
+                    err = stderr.decode().strip() if stderr else 'unknown error'
+                    logger.warning(f"raw.lxc config warning for {container_name}: {err}")
+            except Exception as e:
+                logger.warning(f"Could not set raw.lxc for {container_name}: {e}")
+        else:
+            # For remote nodes: send via the normal execute path using base64 decode
+            try:
+                await execute_lxc(container_name,
+                    f"config set {container_name} raw.lxc \"$(echo {raw_b64} | base64 -d)\"",
+                    node_id=node_id)
+            except Exception as e:
+                logger.warning(f"Could not set raw.lxc on remote node for {container_name}: {e}")
+
         logger.info(f"LXC permissions applied to {container_name} on node {node_id}")
     except Exception as e:
         logger.error(f"Failed to apply LXC config to {container_name}: {e}")
@@ -1871,59 +1896,107 @@ def deallocate_ports(user_id: int, amount: int):
         conn.commit()
 
 def get_available_host_port(node_id: int) -> Optional[int]:
+    """Find a free host port that is not in use in DB and not bound on the OS."""
     with get_db() as conn:
         cur = conn.cursor()
-        cur.execute('SELECT host_port FROM port_forwards WHERE vps_container IN (SELECT container_name FROM vps WHERE node_id = ?)',
-                    (node_id,))
+        cur.execute('SELECT host_port FROM port_forwards')
         used_ports = set(row[0] for row in cur.fetchall())
-    
-    for _ in range(100):
-        port = random.randint(20000, 50000)
-        if port not in used_ports:
+
+    import socket as _sock
+    # Try sequentially from a base to avoid random collisions
+    start = random.randint(20000, 40000)
+    for offset in range(10000):
+        port = ((start + offset - 20000) % 20000) + 20000  # stay in 20000-39999
+        if port in used_ports:
+            continue
+        # Verify the port is actually free on the host
+        try:
+            with _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM) as s:
+                s.setsockopt(_sock.SOL_SOCKET, _sock.SO_REUSEADDR, 1)
+                s.bind(('0.0.0.0', port))
             return port
+        except OSError:
+            used_ports.add(port)  # mark as taken so we skip it next iteration
+            continue
+    logger.error("Could not find a free host port in range 20000-39999")
     return None
 
 async def create_port_forward(user_id: int, container: str, vps_port: int, node_id: int,
                               protocol: str = 'tcp,udp', description: str = '') -> Optional[int]:
     host_port = get_available_host_port(node_id)
     if not host_port:
+        logger.error("No available host port found")
         return None
-    
+
+    # Resolve the container's IP for the proxy connect target.
+    # LXC proxy devices need the container's actual IP, not 127.0.0.1 (host loopback).
+    connect_ip = '127.0.0.1'  # fallback
     try:
-        if 'tcp' in protocol:
-            await execute_lxc(container, f"config device add {container} tcp_proxy_{host_port} proxy listen=tcp:0.0.0.0:{host_port} connect=tcp:127.0.0.1:{vps_port}", node_id=node_id)
-        
-        if 'udp' in protocol:
-            await execute_lxc(container, f"config device add {container} udp_proxy_{host_port} proxy listen=udp:0.0.0.0:{host_port} connect=udp:127.0.0.1:{vps_port}", node_id=node_id)
-        
+        ip_result = await execute_lxc(container,
+            f"exec {container} -- sh -c \"ip -4 addr show eth0 | grep -oP '(?<=inet )\\d+\\.\\d+\\.\\d+\\.\\d+'\"",
+            node_id=node_id, timeout=10)
+        if ip_result and ip_result.strip():
+            connect_ip = ip_result.strip().split('\n')[0].strip()
+            logger.info(f"Port forward connect target: {connect_ip}")
+    except Exception as e:
+        logger.warning(f"Could not get container IP for port forward, using 127.0.0.1: {e}")
+
+    try:
+        protocols = [p.strip() for p in protocol.replace('+', ',').split(',') if p.strip()]
+
+        for proto in protocols:
+            proto = proto.lower()
+            if proto not in ('tcp', 'udp'):
+                continue
+            device_name = f"{proto}_proxy_{host_port}"
+            try:
+                # Remove stale device if it exists
+                await execute_lxc(container,
+                    f"config device remove {container} {device_name}",
+                    node_id=node_id, timeout=10)
+            except Exception:
+                pass  # doesn't exist yet, fine
+            await execute_lxc(container,
+                f"config device add {container} {device_name} proxy "
+                f"listen={proto}:0.0.0.0:{host_port} "
+                f"connect={proto}:{connect_ip}:{vps_port}",
+                node_id=node_id, timeout=30)
+            logger.info(f"Added {proto} proxy device {device_name} on port {host_port} -> {connect_ip}:{vps_port}")
+
         now = datetime.now().isoformat()
         with get_db() as conn:
             cur = conn.cursor()
-            cur.execute('''INSERT INTO port_forwards 
+            cur.execute('''INSERT INTO port_forwards
                 (user_id, vps_container, vps_port, host_port, protocol, description, created_at, last_used, hits)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                 (user_id, container, vps_port, host_port, protocol, description, now, now, 0))
             conn.commit()
-            
-            cur.execute('UPDATE port_allocations SET used_ports = used_ports + 1, updated_at = ? WHERE user_id = ?',
-                       (now, user_id))
+
+            # Upsert port_allocations — create row if missing
+            cur.execute('SELECT id FROM port_allocations WHERE user_id = ?', (user_id,))
+            if cur.fetchone():
+                cur.execute('UPDATE port_allocations SET used_ports = used_ports + 1, updated_at = ? WHERE user_id = ?',
+                           (now, user_id))
+            else:
+                cur.execute('INSERT INTO port_allocations (user_id, allocated_ports, used_ports, created_at, updated_at) VALUES (?, ?, 1, ?, ?)',
+                           (user_id, int(get_setting('default_port_quota', '5')), now, now))
             conn.commit()
-        
+
         log_activity(user_id, 'create_port_forward', 'port', str(host_port),
                     {'container': container, 'vps_port': vps_port, 'host_port': host_port, 'protocol': protocol})
-        create_notification(user_id, 'success', 'Port Forward Created', 
+        create_notification(user_id, 'success', 'Port Forward Created',
                           f'Port {vps_port} forwarded to port {host_port} on {container}')
-        
+
         if socketio:
             socketio.emit('port_forward_created', {
                 'host_port': host_port,
                 'vps_port': vps_port,
                 'container': container
             }, room=f'user_{user_id}')
-        
+
         return host_port
     except Exception as e:
-        logger.error(f"Failed to create port forward: {e}")
+        logger.error(f"Failed to create port forward: {e}", exc_info=True)
         return None
 
 async def remove_port_forward(forward_id: int) -> Tuple[bool, Optional[int]]:
@@ -5504,52 +5577,55 @@ def ports_list():
 @app.route('/ports/add', methods=['POST'])
 @login_required
 def ports_add():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     vps_id = data.get('vps_id')
     vps_port = data.get('vps_port')
-    protocol = data.get('protocol', 'tcp,udp')
+    # Normalise protocol: "TCP + UDP" -> "tcp,udp", "TCP" -> "tcp", etc.
+    protocol_raw = str(data.get('protocol', 'tcp,udp')).lower()
+    protocol = ','.join(sorted(set(
+        p.strip() for p in protocol_raw.replace('+', ',').split(',')
+        if p.strip() in ('tcp', 'udp')
+    )))
+    if not protocol:
+        protocol = 'tcp,udp'
     description = data.get('description', '')
-    
+
     if not vps_id or not vps_port:
-        return jsonify({'success': False, 'error': 'Missing parameters'}), 400
-    
+        return jsonify({'success': False, 'error': 'Missing vps_id or vps_port'}), 400
+
     try:
         vps_port = int(vps_port)
         if vps_port < 1 or vps_port > 65535:
             raise ValueError
     except ValueError:
-        return jsonify({'success': False, 'error': 'Invalid port number'}), 400
-    
+        return jsonify({'success': False, 'error': 'Invalid port number (1-65535)'}), 400
+
     vps = get_vps_by_id(vps_id)
     if not vps:
         return jsonify({'success': False, 'error': 'VPS not found'}), 404
-    
-    # Allow VPS owner or admin
+
     if vps['user_id'] != current_user.id and not current_user.is_admin:
         return jsonify({'success': False, 'error': 'Access denied'}), 403
-    
+
     if is_vps_suspended(vps) and not current_user.is_admin:
         return jsonify({'success': False, 'error': 'VPS is suspended'}), 403
-    
-    # Use VPS owner's account for port allocation (even if admin is creating it)
+
     owner_id = vps['user_id']
     allocated = get_user_allocation(owner_id)
     used = get_user_used_ports(owner_id)
-    
+
     if used >= allocated:
-        return jsonify({'success': False, 'error': f'Port quota exceeded for VPS owner (used {used}/{allocated})'}), 400
-    
-    # Create port forward under VPS owner's account
-    host_port = run_sync(create_port_forward(owner_id, vps['container_name'], vps_port, vps['node_id'], protocol, description))
-    
+        return jsonify({'success': False, 'error': f'Port quota exceeded ({used}/{allocated} used)'}), 400
+
+    host_port = run_sync(create_port_forward(
+        owner_id, vps['container_name'], vps_port, vps['node_id'], protocol, description
+    ))
+
     if host_port:
         display_ip = get_vps_display_ip(vps) or YOUR_SERVER_IP
-        
-        # Log who actually created it
         if current_user.is_admin and current_user.id != owner_id:
             log_activity(current_user.id, 'admin_create_port_forward', 'port', str(host_port),
                         {'vps_id': vps_id, 'owner_id': owner_id, 'vps_port': vps_port, 'host_port': host_port})
-        
         return jsonify({
             'success': True,
             'host_port': host_port,
@@ -5557,7 +5633,7 @@ def ports_add():
             'display_ip': display_ip
         })
     else:
-        return jsonify({'success': False, 'error': 'Could not assign host port'}), 500
+        return jsonify({'success': False, 'error': 'Could not assign host port — check server logs for details'}), 500
 
 @app.route('/ports/remove/<int:forward_id>', methods=['POST'])
 @login_required
@@ -6796,85 +6872,124 @@ def admin_vps_create():
             cur = conn.cursor()
             cur.execute('SELECT id, username, email FROM users ORDER BY username')
             users = [dict(row) for row in cur.fetchall()]
-        
         nodes = get_nodes()
-        
         return render_template('admin/vps_create.html',
                               panel_name=get_setting('site_name', 'HVM PANEL'),
                               users=users,
                               nodes=nodes,
                               os_options=OS_OPTIONS)
-    
-    data = request.get_json()
-    user_id = data.get('user_id')
-    node_id = data.get('node_id')
-    ram = int(data.get('ram', 2))
-    cpu = int(data.get('cpu', 2))
-    disk = int(data.get('disk', 20))
-    os_version = data.get('os_version', 'ubuntu:22.04')
-    hostname = data.get('hostname')
-    ip_address = data.get('ip_address', '').strip() if data.get('ip_address') else None
-    ip_alias = data.get('ip_alias', '').strip() if data.get('ip_alias') else None
-    expiration_days = int(data.get('expiration_days', 0))
-    auto_suspend_enabled = bool(data.get('auto_suspend_enabled', False))
-    
+
+    # --- POST: create VPS ---
+    # Accept both JSON and form data
+    data = request.get_json(silent=True) or request.form.to_dict()
+    if not data:
+        return jsonify({'success': False, 'error': 'No data received. Send JSON with Content-Type: application/json'}), 400
+
+    try:
+        user_id = data.get('user_id')
+        node_id = data.get('node_id')
+        ram = int(data.get('ram', 2))
+        cpu = int(data.get('cpu', 2))
+        disk = int(data.get('disk', 20))
+        os_version = data.get('os_version', 'ubuntu:22.04')
+        hostname = (data.get('hostname') or '').strip() or None
+        ip_address = (data.get('ip_address') or '').strip() or None
+        ip_alias = (data.get('ip_alias') or '').strip() or None
+        expiration_days = int(data.get('expiration_days', 0))
+        auto_suspend_enabled = bool(data.get('auto_suspend_enabled', False))
+    except (TypeError, ValueError) as e:
+        return jsonify({'success': False, 'error': f'Invalid parameter: {e}'}), 400
+
     # Validate IP address format if provided
     if ip_address:
         try:
             import ipaddress
             ipaddress.ip_address(ip_address)
-            logger.info(f"Valid IP address provided: {ip_address}")
-        except ValueError as e:
-            logger.error(f"Invalid IP address format: {ip_address}")
+        except ValueError:
             return jsonify({'success': False, 'error': f'Invalid IP address format: {ip_address}'}), 400
-    
-    if not all([user_id, node_id]):
-        return jsonify({'success': False, 'error': 'Missing parameters'}), 400
-    
+
+    if not user_id or not node_id:
+        return jsonify({'success': False, 'error': 'user_id and node_id are required'}), 400
+
     node = get_node(node_id)
     if not node:
         return jsonify({'success': False, 'error': 'Node not found'}), 404
-    
+
     current_count = get_current_vps_count(node_id)
     if current_count >= node['total_vps']:
         return jsonify({'success': False, 'error': 'Node at full capacity'}), 400
-    
+
     max_vps = int(get_setting('max_vps_per_user', '10'))
     user_vps_count = len(get_vps_for_user(user_id))
     if user_vps_count >= max_vps:
         return jsonify({'success': False, 'error': f'User has reached maximum VPS limit ({max_vps})'}), 400
-    
+
+    container_name = None
     try:
         with get_db() as conn:
             cur = conn.cursor()
             cur.execute('SELECT COUNT(*) FROM vps WHERE user_id = ?', (user_id,))
             vps_count = cur.fetchone()[0] + 1
-        
-        container_name = f"hvm-vps-{user_id}-{vps_count}"
+
+        # Build container name
         if hostname:
-            container_name = hostname.lower().replace(' ', '-').replace('_', '-')
-            container_name = re.sub(r'[^a-z0-9\-]', '', container_name)
-        
+            base_name = hostname.lower().replace(' ', '-').replace('_', '-')
+            base_name = re.sub(r'[^a-z0-9\-]', '', base_name)
+            base_name = base_name[:60]  # LXC name length limit
+        else:
+            base_name = f"hvm-vps-{user_id}-{vps_count}"
+
+        # Ensure container name is unique — append suffix if already exists
+        container_name = base_name
+        suffix = 1
+        while True:
+            try:
+                check = run_sync(execute_lxc(container_name, f"info {container_name}", node_id=node_id, timeout=10))
+                # If we get here the container exists — try next suffix
+                container_name = f"{base_name}-{suffix}"
+                suffix += 1
+            except Exception:
+                # Container doesn't exist — good to use this name
+                break
+
         ram_mb = ram * 1024
-        
-        run_sync(execute_lxc(container_name, f"init {os_version} {container_name} -s {DEFAULT_STORAGE_POOL}", node_id=node_id))
+
+        # Step 1: init container
+        run_sync(execute_lxc(container_name,
+            f"init {os_version} {container_name} -s {DEFAULT_STORAGE_POOL}",
+            node_id=node_id, timeout=300))
+
+        # Step 2: set resource limits
         run_sync(execute_lxc(container_name, f"config set {container_name} limits.memory {ram_mb}MB", node_id=node_id))
         run_sync(execute_lxc(container_name, f"config set {container_name} limits.cpu {cpu}", node_id=node_id))
         run_sync(execute_lxc(container_name, f"config device set {container_name} root size={disk}GB", node_id=node_id))
-        
-        
+
+        # Step 3: apply security/nesting config
         run_sync(apply_lxc_config(container_name, node_id))
-        run_sync(execute_lxc(container_name, f"start {container_name}", node_id=node_id))
-        
-        # Configure IP after container is started
+
+        # Step 4: start container
+        run_sync(execute_lxc(container_name, f"start {container_name}", node_id=node_id, timeout=60))
+
+        # Step 5: configure IP (non-fatal)
         if ip_address:
-            run_sync(configure_container_ip(container_name, ip_address, node_id))
-        
-        run_sync(apply_internal_permissions(container_name, node_id))
-        
-        # Configure SSH and set root password
-        run_sync(configure_ssh_and_root_password(container_name, node_id))
-        
+            try:
+                run_sync(configure_container_ip(container_name, ip_address, node_id))
+            except Exception as e:
+                logger.warning(f"IP config failed (non-fatal): {e}")
+
+        # Step 6: internal permissions + tools (non-fatal)
+        try:
+            run_sync(apply_internal_permissions(container_name, node_id))
+        except Exception as e:
+            logger.warning(f"Internal permissions failed (non-fatal): {e}")
+
+        # Step 7: SSH setup (non-fatal)
+        try:
+            run_sync(configure_ssh_and_root_password(container_name, node_id))
+        except Exception as e:
+            logger.warning(f"SSH setup failed (non-fatal): {e}")
+
+        # Step 8: save to DB
         config_str = f"{ram}GB RAM / {cpu} CPU / {disk}GB Disk"
         vps_id = create_vps(
             user_id=user_id,
@@ -6891,17 +7006,22 @@ def admin_vps_create():
             expiration_days=expiration_days,
             auto_suspend_enabled=auto_suspend_enabled
         )
-        
+
         log_activity(current_user.id, 'admin_create_vps', 'vps', str(vps_id),
                     {'user_id': user_id, 'container': container_name})
-        create_notification(user_id, 'success', 'VPS Created', f'Your VPS {container_name} has been created by an administrator.')
+        create_notification(user_id, 'success', 'VPS Created',
+                           f'Your VPS {container_name} has been created by an administrator.')
         return jsonify({'success': True, 'vps_id': vps_id, 'container_name': container_name})
+
     except Exception as e:
-        logger.error(f"VPS creation error: {e}")
-        try:
-            run_sync(execute_lxc(container_name, f"delete {container_name} --force", node_id=node_id))
-        except:
-            pass
+        logger.error(f"VPS creation error: {e}", exc_info=True)
+        # Cleanup: delete the container if it was partially created
+        if container_name:
+            try:
+                run_sync(execute_lxc(container_name, f"delete {container_name} --force", node_id=node_id, timeout=30))
+                logger.info(f"Cleaned up failed container: {container_name}")
+            except Exception:
+                pass
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/admin/nodes')
