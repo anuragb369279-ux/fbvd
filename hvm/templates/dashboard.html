@@ -14,555 +14,312 @@
 
 {% block content %}
 <!-- Welcome Section -->
-<div class="welcome-banner">
-    <div class="welcome-content">
-        <div class="welcome-text">
-            <div class="system-status">
-                <span class="status-indicator online"></span>
-                System Online
-            </div>
-            <h1>Welcome back, <span>{{ current_user.username }}</span></h1>
-            <p>Here's an overview of your infrastructure. You currently have <strong>{{ running_count }}</strong> active units.</p>
+<div class="card" style="margin-bottom: 2rem;">
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div style="flex: 1;">
+            <h2 style="font-size: 1.5rem; margin-bottom: 0.5rem;">Welcome back, {{ current_user.username }}! 👋</h2>
+            <p style="color: var(--text-muted);">Manage your virtual private servers from one central dashboard.</p>
         </div>
-        <div class="welcome-actions">
+        <div>
             <a href="{{ url_for('vps_list') }}" class="btn btn-primary">
-                <i class="fas fa-server"></i> Manage VPS
+                <i class="fas fa-server"></i>
+                <span>Manage VPS</span>
             </a>
             {% if current_user.is_admin %}
-            <a href="{{ url_for('admin_vps_create') }}" class="btn btn-secondary">
-                <i class="fas fa-plus"></i> New VPS
+            <a href="{{ url_for('admin_vps_create') }}" class="btn btn-success">
+                <i class="fas fa-plus"></i>
+                <span>New VPS</span>
             </a>
             {% endif %}
         </div>
     </div>
-    <div class="welcome-illustration">
-        <i class="fas fa-chart-network"></i>
-    </div>
 </div>
-
-<style>
-/* Modern Dashboard Styles */
-:root {
-    --card-bg: #1e1e2d;
-    --card-border: #2b2b40;
-    --text-primary: #ffffff;
-    --text-secondary: #a0a0b5;
-    --accent-primary: #6366f1;
-    --accent-success: #10b981;
-    --accent-warning: #f59e0b;
-    --accent-danger: #ef4444;
-    --bg-body: #13131a;
-}
-
-body {
-    background-color: var(--bg-body);
-    color: var(--text-primary);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-.welcome-banner {
-    background: linear-gradient(135deg, #2a2a3c 0%, #1e1e2d 100%);
-    border: 1px solid var(--card-border);
-    border-radius: 16px;
-    padding: 2.5rem 3rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    position: relative;
-    overflow: hidden;
-}
-
-.welcome-banner::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 4px;
-    height: 100%;
-    background: var(--accent-primary);
-}
-
-.system-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--accent-success);
-    background: rgba(16, 185, 129, 0.1);
-    padding: 0.4rem 0.8rem;
-    border-radius: 20px;
-    margin-bottom: 1rem;
-}
-
-.status-indicator {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 8px currentColor;
-}
-
-.welcome-text h1 {
-    font-size: 2.2rem;
-    font-weight: 700;
-    margin: 0 0 0.5rem 0;
-    color: var(--text-primary);
-}
-
-.welcome-text h1 span {
-    color: var(--accent-primary);
-}
-
-.welcome-text p {
-    color: var(--text-secondary);
-    font-size: 1.05rem;
-    margin: 0;
-    max-width: 500px;
-    line-height: 1.5;
-}
-
-.welcome-actions {
-    display: flex;
-    gap: 1rem;
-    margin-top: 1.5rem;
-}
-
-.btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.95rem;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    text-decoration: none;
-    border: none;
-}
-
-.btn-primary {
-    background: var(--accent-primary);
-    color: white;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
-}
-
-.btn-primary:hover {
-    background: #4f46e5;
-    transform: translateY(-2px);
-}
-
-.btn-secondary {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-primary);
-    border: 1px solid var(--card-border);
-}
-
-.btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-2px);
-}
-
-.welcome-illustration {
-    font-size: 8rem;
-    color: var(--accent-primary);
-    opacity: 0.05;
-    position: absolute;
-    right: 5%;
-    top: 50%;
-    transform: translateY(-50%);
-}
-
-/* Stats Grid */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.stat-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-    border-color: rgba(255,255,255,0.1);
-}
-
-.stat-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.stat-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.stat-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-}
-
-.icon-blue { background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); }
-.icon-green { background: rgba(16, 185, 129, 0.1); color: var(--accent-success); }
-.icon-orange { background: rgba(245, 158, 11, 0.1); color: var(--accent-warning); }
-.icon-red { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); }
-
-.stat-value {
-    font-size: 2.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    line-height: 1.2;
-    margin-bottom: 0.5rem;
-}
-
-.stat-desc {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
-}
-
-/* Charts Section */
-.charts-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    margin-bottom: 2rem;
-}
-
-.chart-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-
-.chart-header {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--card-border);
-}
-
-.chart-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.chart-container {
-    height: 300px;
-    position: relative;
-}
-
-/* Table Section */
-.data-card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 12px;
-    overflow: hidden;
-}
-
-.data-header {
-    padding: 1.5rem;
-    border-bottom: 1px solid var(--card-border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.data-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.modern-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.modern-table th {
-    background: rgba(255, 255, 255, 0.02);
-    padding: 1rem 1.5rem;
-    text-align: left;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid var(--card-border);
-}
-
-.modern-table td {
-    padding: 1rem 1.5rem;
-    border-bottom: 1px solid var(--card-border);
-    color: var(--text-primary);
-    font-size: 0.95rem;
-    vertical-align: middle;
-}
-
-.modern-table tr:last-child td {
-    border-bottom: none;
-}
-
-.modern-table tr:hover td {
-    background: rgba(255, 255, 255, 0.01);
-}
-
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.3rem 0.8rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.status-active { background: rgba(16, 185, 129, 0.1); color: var(--accent-success); }
-.status-offline { background: rgba(239, 68, 68, 0.1); color: var(--accent-danger); }
-.status-locked { background: rgba(245, 158, 11, 0.1); color: var(--accent-warning); }
-
-.resource-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    background: rgba(255, 255, 255, 0.05);
-    padding: 0.2rem 0.6rem;
-    border-radius: 6px;
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-    margin-right: 0.5rem;
-}
-
-.action-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--text-secondary);
-    transition: all 0.2s;
-    text-decoration: none;
-}
-
-.action-btn:hover {
-    background: var(--accent-primary);
-    color: white;
-}
-
-@media (max-width: 1024px) {
-    .charts-grid { grid-template-columns: 1fr; }
-}
-@media (max-width: 768px) {
-    .welcome-banner { flex-direction: column; align-items: flex-start; padding: 2rem; }
-    .welcome-illustration { display: none; }
-}
-</style>
 
 <!-- Stats Grid -->
-<div class="stats-grid">
+<div class="grid grid-4" style="margin-bottom: 2rem;">
     <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Total Units</span>
-            <div class="stat-icon icon-blue"><i class="fas fa-server"></i></div>
+        <div class="stat-icon primary">
+            <i class="fas fa-server"></i>
         </div>
-        <div class="stat-value" id="val-vps-count">{{ vps_count|default(0) }}</div>
-        <div class="stat-desc">
-            <span style="color: var(--accent-success);">{{ running_count|default(0) }} Active</span> • 
-            <span style="color: var(--accent-warning);">{{ suspended_count|default(0) }} Locked</span>
+        <div class="stat-content">
+            <div class="stat-label">Total VPS</div>
+            <div class="stat-value">{{ vps_count }}</div>
+            <div class="stat-change">
+                <span class="badge badge-info">{{ running_count }} running</span>
+                <span class="badge badge-warning">{{ suspended_count }} suspended</span>
+            </div>
         </div>
     </div>
 
     <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">CPU Cores</span>
-            <div class="stat-icon icon-green"><i class="fas fa-microchip"></i></div>
+        <div class="stat-icon success">
+            <i class="fas fa-microchip"></i>
         </div>
-        <div class="stat-value" id="val-total-cpu">{{ total_cpu|default(0) }}</div>
-        <div class="stat-desc">Total allocated processing power</div>
+        <div class="stat-content">
+            <div class="stat-label">Total CPU Cores</div>
+            <div class="stat-value">{{ total_cpu }}</div>
+            <div class="stat-change">Across all VPS</div>
+        </div>
     </div>
 
     <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Memory (RAM)</span>
-            <div class="stat-icon icon-orange"><i class="fas fa-memory"></i></div>
+        <div class="stat-icon warning">
+            <i class="fas fa-memory"></i>
         </div>
-        <div class="stat-value" id="val-total-ram">{{ total_ram|default(0) }}<span style="font-size: 1rem; color: var(--text-secondary);">GB</span></div>
-        <div class="stat-desc">Total allocated memory capacity</div>
+        <div class="stat-content">
+            <div class="stat-label">Total RAM</div>
+            <div class="stat-value">{{ total_ram }} GB</div>
+            <div class="stat-change">Across all VPS</div>
+        </div>
     </div>
 
     <div class="stat-card">
-        <div class="stat-header">
-            <span class="stat-title">Storage</span>
-            <div class="stat-icon icon-red"><i class="fas fa-hdd"></i></div>
+        <div class="stat-icon danger">
+            <i class="fas fa-hdd"></i>
         </div>
-        <div class="stat-value" id="val-total-disk">{{ total_disk|default(0) }}<span style="font-size: 1rem; color: var(--text-secondary);">GB</span></div>
-        <div class="stat-desc">Total allocated disk space</div>
+        <div class="stat-content">
+            <div class="stat-label">Total Storage</div>
+            <div class="stat-value">{{ total_disk }} GB</div>
+            <div class="stat-change">Across all VPS</div>
+        </div>
     </div>
 </div>
 
-<div class="charts-grid">
+<!-- Quick Actions for Mobile -->
+<div class="card" style="margin-bottom: 2rem; display: none;" id="quickActionsMobile">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-bolt"></i>
+            Quick Actions
+        </h3>
+    </div>
+    <div class="grid grid-2" style="gap: 1rem;">
+        <a href="{{ url_for('vps_list') }}" class="btn btn-outline btn-block">
+            <i class="fas fa-server"></i> My VPS
+        </a>
+        <a href="{{ url_for('ports_list') }}" class="btn btn-outline btn-block">
+            <i class="fas fa-plug"></i> Ports
+        </a>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline btn-block">
+            <i class="fas fa-crown"></i> Admin
+        </a>
+        <a href="{{ url_for('admin_vps_create') }}" class="btn btn-primary btn-block">
+            <i class="fas fa-plus"></i> New VPS
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="grid grid-2" style="margin-bottom: 2rem;">
     <!-- VPS Status Chart -->
-    <div class="chart-card">
-        <div class="chart-header">
-            <div class="chart-title">
-                <i class="fas fa-chart-pie" style="color: var(--accent-primary);"></i>
-                Unit Status Overview
-            </div>
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-pie"></i>
+                VPS Status Overview
+            </h3>
         </div>
-        <div class="chart-container">
+        <div style="height: 250px; position: relative;">
             <canvas id="statusChart"></canvas>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 1rem; flex-wrap: wrap;">
+            <div><span class="status-dot running" style="display: inline-block; margin-right: 0.5rem;"></span> Running: {{ running_count }}</div>
+            <div><span class="status-dot stopped" style="display: inline-block; margin-right: 0.5rem;"></span> Stopped: {{ stopped_count }}</div>
+            <div><span class="status-dot suspended" style="display: inline-block; margin-right: 0.5rem;"></span> Suspended: {{ suspended_count }}</div>
         </div>
     </div>
 
-    <!-- Resource Allocation -->
-    <div class="chart-card">
-        <div class="chart-header">
-            <div class="chart-title">
-                <i class="fas fa-chart-bar" style="color: var(--accent-success);"></i>
-                Resource Allocation
-            </div>
+    <!-- Resource Usage -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <i class="fas fa-chart-line"></i>
+                Resource Usage
+            </h3>
         </div>
-        <div class="chart-container">
+        <div style="height: 250px; position: relative;">
             <canvas id="resourceChart"></canvas>
         </div>
     </div>
 </div>
 
-<!-- Active VPS List -->
-<div class="data-card">
-    <div class="data-header">
-        <div class="data-title">
-            <i class="fas fa-list" style="color: var(--accent-primary);"></i>
-            Recent Units
-        </div>
-        <a href="{{ url_for('vps_list') }}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">
-            View All
+<!-- My VPS List -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-server"></i>
+            My Virtual Private Servers
+        </h3>
+        <a href="{{ url_for('vps_list') }}" class="btn btn-sm btn-outline">
+            <span>View All</span>
+            <i class="fas fa-arrow-right"></i>
         </a>
     </div>
-    <div style="overflow-x: auto;">
-        <table class="modern-table">
+
+    {% if vps_list %}
+    <div class="table-responsive">
+        <table class="table">
             <thead>
                 <tr>
-                    <th>Hostname</th>
+                    <th>Name</th>
                     <th>Status</th>
                     <th>Resources</th>
                     <th>IP Address</th>
-                    <th style="text-align: right;">Actions</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% if vps_list %}
-                    {% for vps in vps_list[:5] %}
-                    <tr>
-                        <td>
-                            <div style="font-weight: 600;">{{ vps.hostname or vps.container_name }}</div>
-                            <div style="font-size: 0.8rem; color: var(--text-secondary);">ID: #{{ vps.id }}</div>
-                        </td>
-                        <td>
-                            {% if vps.suspended %}
-                                <span class="status-badge status-locked"><span class="status-indicator"></span> Locked</span>
-                            {% elif vps.live_status == 'running' %}
-                                <span class="status-badge status-active"><span class="status-indicator"></span> Active</span>
+                {% for vps in vps_list[:5] %}
+                <tr>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div class="user-avatar" style="width: 32px; height: 32px; background-color: var(--accent-primary);">
+                                <i class="fas fa-server" style="font-size: 1rem;"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight: 600;">{{ vps.hostname or vps.container_name }}</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">ID: {{ vps.id }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="status-indicator">
+                            <span class="status-dot {% if vps.suspended %}suspended{% elif vps.live_status == 'running' %}running{% else %}stopped{% endif %}"></span>
+                            <span class="status-text">
+                                {% if vps.suspended %}Suspended{% elif vps.live_status == 'running' %}Running{% else %}Stopped{% endif %}
+                            </span>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="font-size: 0.875rem;">
+                            <div><i class="fas fa-microchip" style="width: 16px; color: var(--text-muted);"></i> {{ vps.cpu }} Cores</div>
+                            <div><i class="fas fa-memory" style="width: 16px; color: var(--text-muted);"></i> {{ vps.ram }}</div>
+                            <div><i class="fas fa-hdd" style="width: 16px; color: var(--text-muted);"></i> {{ vps.storage }}</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div style="font-family: monospace;">
+                            {% if vps.ip_alias %}
+                            {{ vps.ip_alias }}
+                            <div style="font-size: 0.7rem; color: var(--text-muted);">(alias)</div>
+                            {% elif vps.ip_address %}
+                            {{ vps.ip_address }}
                             {% else %}
-                                <span class="status-badge status-offline"><span class="status-indicator"></span> Offline</span>
+                            <span class="text-muted">Not assigned</span>
                             {% endif %}
-                        </td>
-                        <td>
-                            <span class="resource-pill"><i class="fas fa-microchip"></i> {{ vps.cpu }}C</span>
-                            <span class="resource-pill"><i class="fas fa-memory"></i> {{ vps.ram }}</span>
-                            <span class="resource-pill"><i class="fas fa-hdd"></i> {{ vps.storage }}</span>
-                        </td>
-                        <td style="font-family: monospace; color: var(--accent-primary);">
-                            {{ vps.ip_alias or vps.ip_address or 'Pending...' }}
-                        </td>
-                        <td style="text-align: right;">
-                            <a href="{{ url_for('vps_detail', vps_id=vps.id) }}" class="action-btn" title="Manage">
+                        </div>
+                    </td>
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <a href="{{ url_for('vps_detail', vps_id=vps.id) }}" class="btn btn-sm btn-outline" data-tooltip="Manage">
                                 <i class="fas fa-cog"></i>
                             </a>
                             {% if vps.live_status == 'running' and not vps.suspended %}
-                            <a href="{{ url_for('vps_console', vps_id=vps.id) }}" class="action-btn" title="Console" style="margin-left: 0.5rem;">
+                            <a href="{{ url_for('vps_console', vps_id=vps.id) }}" class="btn btn-sm btn-outline" data-tooltip="Console">
                                 <i class="fas fa-terminal"></i>
                             </a>
                             {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                {% else %}
-                    <tr>
-                        <td colspan="5" style="text-align: center; padding: 3rem;">
-                            <div style="color: var(--text-secondary);">
-                                <i class="fas fa-server" style="font-size: 2rem; margin-bottom: 1rem; opacity: 0.5;"></i>
-                                <p>No units found. Create your first VPS to get started.</p>
-                            </div>
-                        </td>
-                    </tr>
-                {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-server"></i>
+        <h3>No VPS Yet</h3>
+        <p>You haven't created any virtual private servers yet.</p>
+        {% if current_user.is_admin %}
+        <a href="{{ url_for('admin_vps_create') }}" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create Your First VPS
+        </a>
+        {% else %}
+        <p class="text-muted">Contact an administrator to create a VPS for you.</p>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 
+<!-- Recent Notifications -->
+{% if notifications %}
+<div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-bell"></i>
+            Recent Notifications
+        </h3>
+        <a href="{{ url_for('notifications') }}" class="btn btn-sm btn-outline">View All</a>
+    </div>
+    <div class="notifications-list">
+        {% for notif in notifications %}
+        <div class="notification-item" onclick="window.location.href='{{ url_for('notifications') }}'">
+            <div class="notification-icon {{ notif.type }}">
+                <i class="fas fa-{% if notif.type == 'success' %}check-circle{% elif notif.type == 'warning' %}exclamation-triangle{% elif notif.type == 'danger' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">{{ notif.title }}</div>
+                <div class="notification-message">{{ notif.message }}</div>
+                <div class="notification-time">{{ notif.created_at|relative_time }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Node Status (for admins) -->
+{% if current_user.is_admin and node_status %}
+<div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+        <h3 class="card-title">
+            <i class="fas fa-network-wired"></i>
+            Node Status
+        </h3>
+    </div>
+    <div class="grid grid-3">
+        {% for node in node_status %}
+        <div class="stat-card" style="padding: 1rem;">
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div class="stat-icon {% if node.online %}success{% else %}danger{% endif %}" style="width: 40px; height: 40px;">
+                    <i class="fas fa-{% if node.online %}check-circle{% else %}exclamation-circle{% endif %}"></i>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-weight: 600;">{{ node.name }}</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">{{ node.location }}</div>
+                    <div style="margin-top: 0.5rem;">
+                        <span class="badge badge-info">{{ node.vps_count }}/{{ node.total_vps }} VPS</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Chart Colors
-        const colors = {
-            primary: '#6366f1',
-            success: '#10b981',
-            warning: '#f59e0b',
-            danger: '#ef4444',
-            bg: '#1e1e2d',
-            text: '#a0a0b5',
-            grid: 'rgba(255,255,255,0.05)'
-        };
+        // Show quick actions on mobile
+        if (window.innerWidth <= 768) {
+            document.getElementById('quickActionsMobile').style.display = 'block';
+        }
 
-        // Common Chart Options
-        Chart.defaults.color = colors.text;
-        Chart.defaults.font.family = "'Inter', sans-serif";
-
-        // Status Doughnut Chart
+        // Status Chart
         const statusCtx = document.getElementById('statusChart').getContext('2d');
         new Chart(statusCtx, {
             type: 'doughnut',
             data: {
-                labels: ['Active', 'Offline', 'Locked'],
+                labels: ['Running', 'Stopped', 'Suspended'],
                 datasets: [{
-                    data: [{{ running_count|default(0) }}, {{ stopped_count|default(0) }}, {{ suspended_count|default(0) }}],
-                    backgroundColor: [colors.success, '#3f3f46', colors.warning],
-                    borderWidth: 0,
-                    hoverOffset: 4
+                    data: [{{ running_count }}, {{ stopped_count }}, {{ suspended_count }}],
+                    backgroundColor: ['#10b981', '#6c757d', '#f59e0b'],
+                    borderColor: 'transparent',
+                    borderWidth: 0
                 }]
             },
             options: {
@@ -571,49 +328,48 @@ body {
                 cutout: '70%',
                 plugins: {
                     legend: {
-                        position: 'bottom',
-                        labels: { padding: 20, usePointStyle: true, pointStyle: 'circle' }
+                        display: false
                     }
                 }
             }
         });
 
-        // Resource Bar Chart
+        // Resource Chart
         const resourceCtx = document.getElementById('resourceChart').getContext('2d');
         new Chart(resourceCtx, {
             type: 'bar',
             data: {
-                labels: ['CPU (Cores)', 'RAM (GB)', 'Disk (GB)'],
+                labels: ['CPU', 'RAM', 'Storage'],
                 datasets: [{
-                    label: 'Allocated Resources',
-                    data: [{{ total_cpu|default(0) }}, {{ total_ram|default(0) }}, {{ total_disk|default(0) }}],
-                    backgroundColor: [
-                        'rgba(99, 102, 241, 0.8)',
-                        'rgba(16, 185, 129, 0.8)',
-                        'rgba(245, 158, 11, 0.8)'
-                    ],
-                    borderRadius: 6,
-                    barThickness: 40
+                    label: 'Total Allocated',
+                    data: [{{ total_cpu }}, {{ total_ram }}, {{ total_disk }}],
+                    backgroundColor: '#3b82f6',
+                    borderRadius: 6
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { display: false }
+                    legend: {
+                        display: false
+                    }
                 },
                 scales: {
                     y: {
                         beginAtZero: true,
-                        grid: { color: colors.grid, drawBorder: false }
-                    },
-                    x: {
-                        grid: { display: false, drawBorder: false }
+                        grid: {
+                            color: '#2a2e34'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value + (this.chart.data.labels[0] === 'CPU' ? ' cores' : ' GB');
+                            }
+                        }
                     }
                 }
             }
         });
     });
 </script>
-{% endblock %}
 {% endblock %}

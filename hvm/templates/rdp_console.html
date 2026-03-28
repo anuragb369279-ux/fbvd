@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ panel_name }} · RDP Console</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark: #1a1d21;
+            --bg-darker: #0f1114;
+            --border-color: #2b2f36;
+            --accent-blue: #0d6efd;
+            --accent-cyan: #0dcaf0;
+            --text-muted: #9ca3af;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-darker);
+            color: #e9ecef;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .rdp-topbar {
+            background-color: #21252b;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+            user-select: none;
+        }
+        .vps-badge {
+            background: #2c313a;
+            padding: 0.35rem 1rem;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            border-left: 4px solid #0d6efd;
+            font-weight: 500;
+        }
+        .vps-badge i { color: #0d6efd; margin-right: 6px; }
+        .conn-status {
+            display: flex; align-items: center; gap: 0.5rem;
+            background: #1e2228; padding: 0.2rem 1rem; border-radius: 30px;
+        }
+        .status-led {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #6c757d; transition: background 0.2s;
+        }
+        .status-led.connected { background: #28a745; box-shadow: 0 0 8px #28a74580; }
+        .status-led.disconnected { background: #dc3545; }
+        .status-led.connecting { background: #ffc107; }
+        .control-buttons .btn {
+            background: #2c313a; border: none; color: #dee2e6;
+            margin-left: 0.3rem; border-radius: 6px;
+            padding: 0.25rem 0.9rem; font-size: 0.85rem; transition: all 0.1s;
+        }
+        .control-buttons .btn:hover { background: #3a404b; color: white; }
+        .control-buttons .btn-exit { background: #a4262c; }
+        .control-buttons .btn-exit:hover { background: #c53030; }
+        /* RDP viewer area */
+        #rdp-container {
+            flex: 1;
+            background: #0c0e12;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #rdp-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+        }
+        /* Login overlay */
+        .rdp-login-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 12, 16, 0.92);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        }
+        .rdp-login-card {
+            background: #232731;
+            border-radius: 20px;
+            width: 420px;
+            padding: 2rem;
+            border: 1px solid #3a4050;
+            box-shadow: 0 25px 50px -12px black;
+        }
+        .rdp-login-card h3 {
+            font-weight: 400; margin-bottom: 1.5rem; color: #b2c9e8;
+        }
+        .form-control, .input-group-text {
+            background-color: #1a1e27;
+            border: 1px solid #333a47;
+            color: white;
+        }
+        .form-control:focus {
+            background-color: #222834;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 0.2rem #0d6efd40;
+            color: white;
+        }
+        .btn-connect {
+            background: #0d6efd; border: none;
+            width: 100%; padding: 0.7rem; font-weight: 500;
+        }
+        .btn-connect:hover { background: #0b5ed7; }
+        .small-note {
+            font-size: 0.8rem; color: #8f9bb3;
+            margin-top: 1rem; text-align: center;
+        }
+        .rdp-footer {
+            background: #1b1f25;
+            border-top: 1px solid var(--border-color);
+            padding: 0.4rem 1rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex; gap: 2rem; flex-wrap: wrap; flex-shrink: 0;
+        }
+        .footer-hint i { width: 18px; color: #6c8a9e; }
+        /* Guacamole iframe wrapper */
+        #guac-wrapper {
+            width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+        }
+        #guac-wrapper iframe {
+            flex: 1; border: none; width: 100%; height: 100%;
+        }
+        /* Fallback info panel */
+        #rdp-info {
+            text-align: center; padding: 2rem; max-width: 500px;
+        }
+        #rdp-info .rdp-icon {
+            font-size: 4rem; color: #0d6efd; margin-bottom: 1rem;
+        }
+        #rdp-info h4 { margin-bottom: 0.5rem; }
+        #rdp-info p { color: var(--text-muted); font-size: 0.9rem; }
+        .rdp-detail-box {
+            background: #1e2228; border-radius: 10px;
+            padding: 1rem 1.5rem; margin-top: 1.5rem;
+            text-align: left; font-family: monospace; font-size: 0.9rem;
+        }
+        .rdp-detail-box .row-item {
+            display: flex; justify-content: space-between;
+            padding: 0.4rem 0; border-bottom: 1px solid #2b2f36;
+        }
+        .rdp-detail-box .row-item:last-child { border-bottom: none; }
+        .rdp-detail-box .label { color: var(--text-muted); }
+        .rdp-detail-box .value { color: #e9ecef; font-weight: 600; }
+        .copy-btn {
+            background: #2c313a; border: none; color: #adb5bd;
+            border-radius: 4px; padding: 0.1rem 0.5rem; font-size: 0.75rem;
+            cursor: pointer; margin-left: 0.5rem;
+        }
+        .copy-btn:hover { background: #3a404b; color: white; }
+        .d-none { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- RDP connection overlay -->
+    <div id="rdpOverlay" class="rdp-login-overlay">
+        <div class="rdp-login-card">
+            <h3><i class="fab fa-windows me-2" style="color:#0d6efd;"></i>Connect via RDP</h3>
+            <div class="mb-3">
+                <label class="form-label">Host / IP</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-network-wired"></i></span>
+                    <input type="text" class="form-control" id="rdpHost" value="{{ vps_ip or '' }}" placeholder="e.g. 192.168.1.100">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">RDP Port</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-regular fa-plug"></i></span>
+                    <input type="number" class="form-control" id="rdpPort" value="3389" min="1" max="65535">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-regular fa-user"></i></span>
+                    <input type="text" class="form-control" id="rdpUser" value="Administrator">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+                    <input type="password" class="form-control" id="rdpPass" placeholder="••••••••">
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Connection Method</label>
+                <select class="form-control" id="rdpMethod">
+                    <option value="info">Show Connection Info (download .rdp file)</option>
+                    <option value="guacamole">Browser RDP via Guacamole (if installed)</option>
+                </select>
+            </div>
+            <button class="btn btn-connect btn-primary" id="rdpConnectBtn">
+                <i class="fab fa-windows me-2"></i>Connect RDP
+            </button>
+            <div class="small-note">
+                <i class="fa-regular fa-circle-info"></i>
+                RDP requires Windows or xRDP installed on the VPS.
+            </div>
+        </div>
+    </div>
+
+    <!-- Top bar -->
+    <div class="rdp-topbar">
+        <div class="d-flex align-items-center gap-3">
+            <div class="vps-badge">
+                <i class="fab fa-windows"></i> {{ vps.container_name }}
+                <span class="badge bg-dark ms-2">{{ vps.os_version }}</span>
+            </div>
+            <div class="conn-status" id="connStatus">
+                <span class="status-led" id="statusLed"></span>
+                <span id="statusText">Disconnected</span>
+            </div>
+        </div>
+        <div class="control-buttons">
+            <button class="btn" id="fullscreenBtn" title="Toggle fullscreen (F11)"><i class="fa-regular fa-window-maximize"></i></button>
+            <button class="btn" id="reconnectBtn" title="Reconnect"><i class="fa-solid fa-rotate-right"></i></button>
+            <button class="btn btn-exit" id="exitBtn"><i class="fa-regular fa-circle-xmark"></i> Exit</button>
+        </div>
+    </div>
+
+    <!-- RDP viewer -->
+    <div id="rdp-container">
+        <!-- Guacamole iframe (shown when guacamole method selected) -->
+        <div id="guac-wrapper">
+            <iframe id="guac-frame" allowfullscreen></iframe>
+        </div>
+
+        <!-- Info panel (shown when info method selected) -->
+        <div id="rdp-info" class="d-none">
+            <div class="rdp-icon"><i class="fab fa-windows"></i></div>
+            <h4>RDP Connection Ready</h4>
+            <p>Use any RDP client (Windows Remote Desktop, Remmina, FreeRDP) to connect with the details below.</p>
+            <div class="rdp-detail-box">
+                <div class="row-item">
+                    <span class="label">Host</span>
+                    <span class="value" id="info-host">-</span>
+                    <button class="copy-btn" onclick="copyText('info-host')"><i class="fas fa-copy"></i></button>
+                </div>
+                <div class="row-item">
+                    <span class="label">Port</span>
+                    <span class="value" id="info-port">3389</span>
+                </div>
+                <div class="row-item">
+                    <span class="label">Username</span>
+                    <span class="value" id="info-user">-</span>
+                    <button class="copy-btn" onclick="copyText('info-user')"><i class="fas fa-copy"></i></button>
+                </div>
+                <div class="row-item">
+                    <span class="label">Password</span>
+                    <span class="value" id="info-pass">-</span>
+                    <button class="copy-btn" onclick="copyText('info-pass')"><i class="fas fa-copy"></i></button>
+                </div>
+            </div>
+            <div style="margin-top:1.5rem; display:flex; gap:0.75rem; justify-content:center; flex-wrap:wrap;">
+                <button class="btn btn-primary" id="downloadRdpBtn">
+                    <i class="fas fa-download me-1"></i> Download .rdp File
+                </button>
+                <button class="btn btn-outline-secondary" onclick="document.getElementById('rdpOverlay').classList.remove('d-none'); document.getElementById('rdp-info').classList.add('d-none'); setStatus('disconnected','Ready');">
+                    <i class="fas fa-arrow-left me-1"></i> Back
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="rdp-footer">
+        <span class="footer-hint"><i class="fa-brands fa-windows"></i> Default RDP port: 3389</span>
+        <span class="footer-hint"><i class="fa-solid fa-user"></i> Default user: Administrator (Windows) or your Linux user</span>
+        <span class="footer-hint"><i class="fa-solid fa-circle-info"></i> xRDP required for Linux RDP access</span>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function () {
+        const vpsId = {{ vps.id }};
+        const statusLed = document.getElementById('statusLed');
+        const statusText = document.getElementById('statusText');
+        const overlay = document.getElementById('rdpOverlay');
+        const rdpInfo = document.getElementById('rdp-info');
+        const guacWrapper = document.getElementById('guac-wrapper');
+        const guacFrame = document.getElementById('guac-frame');
+
+        function setStatus(state, msg) {
+            statusLed.className = 'status-led';
+            if (state === 'connected') {
+                statusLed.classList.add('connected');
+                statusText.innerText = msg || 'Connected';
+            } else if (state === 'connecting') {
+                statusLed.classList.add('connecting');
+                statusText.innerText = msg || 'Connecting...';
+            } else {
+                statusLed.classList.add('disconnected');
+                statusText.innerText = msg || 'Disconnected';
+            }
+        }
+
+        function copyText(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            navigator.clipboard.writeText(el.innerText).then(() => {
+                const orig = el.style.color;
+                el.style.color = '#28a745';
+                setTimeout(() => el.style.color = orig, 800);
+            }).catch(() => {});
+        }
+        window.copyText = copyText;
+
+        document.getElementById('rdpConnectBtn').addEventListener('click', function () {
+            const host = document.getElementById('rdpHost').value.trim();
+            const port = parseInt(document.getElementById('rdpPort').value) || 3389;
+            const user = document.getElementById('rdpUser').value.trim() || 'Administrator';
+            const pass = document.getElementById('rdpPass').value;
+            const method = document.getElementById('rdpMethod').value;
+
+            if (!host) { alert('Please enter the VPS IP or hostname'); return; }
+
+            overlay.classList.add('d-none');
+            setStatus('connecting', 'Connecting...');
+
+            if (method === 'guacamole') {
+                // Try to connect via Guacamole (must be running on the server)
+                // Build a Guacamole connection URL - adjust base URL to your Guacamole install
+                const guacBase = window.location.origin + '/guacamole';
+                const params = new URLSearchParams({
+                    host: host,
+                    port: port,
+                    username: user,
+                    password: pass,
+                    protocol: 'rdp',
+                    width: window.innerWidth,
+                    height: window.innerHeight - 80,
+                });
+                guacWrapper.style.display = 'flex';
+                rdpInfo.classList.add('d-none');
+                guacFrame.src = `${guacBase}/#/?${params.toString()}`;
+                guacFrame.onload = function () {
+                    setStatus('connected', `RDP ${user}@${host}:${port}`);
+                };
+                guacFrame.onerror = function () {
+                    setStatus('disconnected', 'Guacamole unavailable');
+                    guacWrapper.style.display = 'none';
+                    rdpInfo.classList.remove('d-none');
+                    showInfoPanel(host, port, user, pass);
+                };
+            } else {
+                // Show connection info + .rdp download
+                guacWrapper.style.display = 'none';
+                rdpInfo.classList.remove('d-none');
+                showInfoPanel(host, port, user, pass);
+                setStatus('connected', `RDP info ready`);
+            }
+        });
+
+        function showInfoPanel(host, port, user, pass) {
+            document.getElementById('info-host').innerText = host;
+            document.getElementById('info-port').innerText = port;
+            document.getElementById('info-user').innerText = user;
+            document.getElementById('info-pass').innerText = pass || '(not shown)';
+
+            document.getElementById('downloadRdpBtn').onclick = function () {
+                const rdpContent = [
+                    'full address:s:' + host + ':' + port,
+                    'username:s:' + user,
+                    'prompt for credentials:i:0',
+                    'authentication level:i:0',
+                    'enablecredsspsupport:i:0',
+                    'screen mode id:i:2',
+                    'use multimon:i:0',
+                    'desktopwidth:i:1920',
+                    'desktopheight:i:1080',
+                    'session bpp:i:32',
+                    'compression:i:1',
+                    'keyboardhook:i:2',
+                    'audiocapturemode:i:0',
+                    'videoplaybackmode:i:1',
+                    'connection type:i:7',
+                    'networkautodetect:i:1',
+                    'bandwidthautodetect:i:1',
+                    'displayconnectionbar:i:1',
+                    'enableworkspacereconnect:i:0',
+                    'disable wallpaper:i:0',
+                    'allow font smoothing:i:0',
+                    'allow desktop composition:i:0',
+                    'disable full window drag:i:1',
+                    'disable menu anims:i:1',
+                    'disable themes:i:0',
+                    'disable cursor setting:i:0',
+                    'bitmapcachepersistenable:i:1',
+                    'redirectprinters:i:1',
+                    'redirectcomports:i:0',
+                    'redirectsmartcards:i:1',
+                    'redirectclipboard:i:1',
+                    'redirectposdevices:i:0',
+                    'autoreconnection enabled:i:1',
+                    'drivestoredirect:s:',
+                ].join('\r\n');
+
+                const blob = new Blob([rdpContent], { type: 'application/x-rdp' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'vps-' + {{ vps.id }} + '-rdp.rdp';
+                a.click();
+                URL.revokeObjectURL(a.href);
+            };
+        }
+
+        document.getElementById('reconnectBtn').addEventListener('click', function () {
+            guacWrapper.style.display = 'none';
+            rdpInfo.classList.add('d-none');
+            overlay.classList.remove('d-none');
+            setStatus('disconnected', 'Ready');
+        });
+
+        document.getElementById('exitBtn').addEventListener('click', function () {
+            window.location.href = '/vps/' + vpsId;
+        });
+
+        document.getElementById('fullscreenBtn').addEventListener('click', function () {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'F11') { e.preventDefault(); document.getElementById('fullscreenBtn').click(); }
+        });
+
+        document.getElementById('rdpPass').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') document.getElementById('rdpConnectBtn').click();
+        });
+
+        setStatus('disconnected', 'Awaiting connection');
+    })();
+    </script>
+</body>
+</html>

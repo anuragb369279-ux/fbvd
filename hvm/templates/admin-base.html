@@ -1282,8 +1282,6 @@
         .cursor-pointer { cursor: pointer; }
     </style>
     
-    <!-- Convoy/Proxmox Theme Override -->
-    <link rel="stylesheet" href="/static/convoy-theme.css">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -1293,7 +1291,7 @@
             <div class="sidebar-header">
                 <a href="{{ url_for('admin_dashboard') }}" class="logo">
                     <i class="fas fa-cube"></i>
-                    <span>{{ get_setting('site_name', 'PVM PANEL') }}</span>
+                    <span>{{ get_setting('site_name', 'HVM PANEL') }}</span>
                 </a>
                 <button class="sidebar-toggle" id="sidebarToggle">
                     <i class="fas fa-chevron-left"></i>
@@ -1469,13 +1467,15 @@
                 <!-- Flash Messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
-                        <script>
-                            document.addEventListener('DOMContentLoaded', () => {
-                                {% for category, message in messages %}
-                                    showToast("{{ category|capitalize }}", "{{ message|safe }}", "{{ 'danger' if category == 'error' else category }}");
-                                {% endfor %}
-                            });
-                        </script>
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category if category in ['success', 'warning', 'danger', 'info'] else 'info' }}">
+                                <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'warning' %}exclamation-triangle{% elif category == 'danger' %}times-circle{% else %}info-circle{% endif %}"></i>
+                                <div class="alert-content">
+                                    <div class="alert-title">{{ category|capitalize }}</div>
+                                    <div class="alert-message">{{ message }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
                     {% endif %}
                 {% endwith %}
                 
@@ -1486,7 +1486,7 @@
             <!-- Footer -->
             <footer class="admin-footer">
                 <div class="footer-copyright">
-                    &copy; {{ now().year }} {{ get_setting('site_name', 'PVM PANEL') }}. All rights reserved.
+                    &copy; {{ now().year }} {{ get_setting('site_name', 'HVM PANEL') }}. All rights reserved.
                 </div>
                 <div class="footer-links">
                     <a href="#">Terms</a>
@@ -1506,7 +1506,7 @@
     
     <script>
         // ===== GLOBAL VARIABLES =====
-        const PANEL_NAME = "{{ get_setting('site_name', 'PVM PANEL') }}";
+        const PANEL_NAME = "{{ get_setting('site_name', 'HVM PANEL') }}";
         const CURRENT_USER = {
             id: {{ current_user.id }},
             username: "{{ current_user.username }}",

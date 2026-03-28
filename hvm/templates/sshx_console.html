@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ panel_name }} · SSHx</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-darker: #0f1114;
+            --bg-dark: #1a1d21;
+            --border-color: #2b2f36;
+            --accent-green: #20c997;
+            --text-muted: #9ca3af;
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-darker);
+            color: #e9ecef;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        .topbar {
+            background: #21252b;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .vps-badge {
+            background: #2c313a;
+            padding: 0.35rem 1rem;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            border-left: 4px solid var(--accent-green);
+            font-weight: 500;
+        }
+        .vps-badge i { color: var(--accent-green); margin-right: 6px; }
+        .control-buttons .btn {
+            background: #2c313a; border: none; color: #dee2e6;
+            margin-left: 0.3rem; border-radius: 6px;
+            padding: 0.25rem 0.9rem; font-size: 0.85rem;
+        }
+        .control-buttons .btn:hover { background: #3a404b; color: white; }
+        .control-buttons .btn-exit { background: #a4262c; }
+        .control-buttons .btn-exit:hover { background: #c53030; }
+        /* Main area */
+        #main-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+        /* SSHx iframe */
+        #sshx-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: none;
+        }
+        /* Setup panel */
+        #setup-panel {
+            max-width: 560px;
+            width: 100%;
+            padding: 1rem;
+        }
+        .setup-card {
+            background: #232731;
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid #3a4050;
+            box-shadow: 0 25px 50px -12px black;
+        }
+        .setup-card h3 {
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+            color: #b2c9e8;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .setup-card .subtitle {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+        .info-box {
+            background: #1a1e27;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            border-left: 3px solid var(--accent-green);
+            font-size: 0.875rem;
+        }
+        .info-box ul { margin: 0.5rem 0 0; padding-left: 1.25rem; color: var(--text-muted); }
+        .info-box ul li { margin-bottom: 0.25rem; }
+        .btn-install {
+            background: var(--accent-green);
+            border: none;
+            color: #000;
+            font-weight: 600;
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 10px;
+            font-size: 1rem;
+            transition: background 0.15s;
+        }
+        .btn-install:hover { background: #17a589; color: #000; }
+        .btn-install:disabled { opacity: 0.6; cursor: not-allowed; }
+        /* URL result box */
+        #url-result {
+            display: none;
+            margin-top: 1.25rem;
+        }
+        .url-box {
+            background: #1a1e27;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            border: 1px solid #2b5a3e;
+        }
+        .url-box label { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; display: block; }
+        .url-row {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .url-row input {
+            flex: 1;
+            background: #0f1114;
+            border: 1px solid #2b2f36;
+            color: #e9ecef;
+            border-radius: 6px;
+            padding: 0.4rem 0.75rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        .url-row .btn-copy {
+            background: #2c313a;
+            border: none;
+            color: #adb5bd;
+            border-radius: 6px;
+            padding: 0.4rem 0.75rem;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .url-row .btn-copy:hover { background: #3a404b; color: white; }
+        .btn-open-frame {
+            margin-top: 0.75rem;
+            width: 100%;
+            background: #0d6efd;
+            border: none;
+            color: white;
+            border-radius: 8px;
+            padding: 0.6rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        .btn-open-frame:hover { background: #0b5ed7; }
+        /* Spinner */
+        .spinner-border-sm { width: 1rem; height: 1rem; }
+        /* Error */
+        #error-box {
+            display: none;
+            margin-top: 1rem;
+            background: rgba(220,53,69,0.1);
+            border: 1px solid #dc3545;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            color: #f8d7da;
+        }
+        /* Manual command box */
+        .manual-box {
+            margin-top: 1.25rem;
+            background: #1a1e27;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+        .manual-box code {
+            display: block;
+            background: #0f1114;
+            border-radius: 6px;
+            padding: 0.5rem 0.75rem;
+            margin-top: 0.4rem;
+            font-size: 0.85rem;
+            color: var(--accent-green);
+            word-break: break-all;
+        }
+        /* Footer */
+        .console-footer {
+            background: #1b1f25;
+            border-top: 1px solid var(--border-color);
+            padding: 0.4rem 1rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        .footer-hint i { width: 18px; color: #6c8a9e; }
+    </style>
+</head>
+<body>
+
+    <!-- Top bar -->
+    <div class="topbar">
+        <div class="d-flex align-items-center gap-3">
+            <div class="vps-badge">
+                <i class="fas fa-share-nodes"></i> {{ vps.container_name }}
+                <span class="badge bg-dark ms-2">SSHx</span>
+            </div>
+        </div>
+        <div class="control-buttons">
+            <button class="btn" id="fullscreenBtn" title="Fullscreen (F11)"><i class="fa-regular fa-window-maximize"></i></button>
+            <button class="btn" id="backBtn" title="Back to setup"><i class="fas fa-arrow-left"></i> Setup</button>
+            <button class="btn btn-exit" id="exitBtn"><i class="fa-regular fa-circle-xmark"></i> Exit</button>
+        </div>
+    </div>
+
+    <!-- Main area -->
+    <div id="main-area">
+        <!-- SSHx embedded frame -->
+        <iframe id="sshx-frame" allowfullscreen></iframe>
+
+        <!-- Setup panel -->
+        <div id="setup-panel">
+            <div class="setup-card">
+                <h3>
+                    <i class="fas fa-share-nodes" style="color: var(--accent-green);"></i>
+                    SSHx — Shared Terminal
+                </h3>
+                <p class="subtitle">
+                    Install <strong>sshx</strong> on your VPS to get a shareable browser terminal link.
+                    Anyone with the link can view or collaborate in real-time.
+                </p>
+
+                <div class="info-box">
+                    <strong><i class="fas fa-circle-info me-1"></i> What SSHx does:</strong>
+                    <ul>
+                        <li>Installs the <code>sshx</code> agent on your VPS via SSH</li>
+                        <li>Generates a unique <strong>sshx.io</strong> share URL</li>
+                        <li>You can open it in any browser — no client needed</li>
+                        <li>Supports multiple windows and real-time collaboration</li>
+                    </ul>
+                </div>
+
+                <button class="btn-install" id="installBtn">
+                    <i class="fas fa-bolt me-2"></i>Install &amp; Start SSHx
+                </button>
+
+                <div id="error-box"></div>
+
+                <div id="url-result">
+                    <div class="url-box">
+                        <label><i class="fas fa-link me-1"></i> Your SSHx Share URL</label>
+                        <div class="url-row">
+                            <input type="text" id="sshxUrl" readonly>
+                            <button class="btn-copy" id="copyBtn"><i class="fas fa-copy me-1"></i>Copy</button>
+                        </div>
+                        <button class="btn-open-frame" id="openFrameBtn">
+                            <i class="fas fa-external-link-alt me-1"></i> Open in Panel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="manual-box">
+                    <strong>Or run manually on your VPS:</strong>
+                    <code>curl -sSf https://sshx.io/get | sh &amp;&amp; sshx</code>
+                    <div style="margin-top:0.5rem;">
+                        VPS IP: <strong>{{ vps_ip or 'Not assigned' }}</strong> &nbsp;|&nbsp;
+                        SSH: <code>ssh root@{{ vps_ip or 'YOUR_IP' }}</code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="console-footer">
+        <span class="footer-hint"><i class="fas fa-share-nodes"></i> sshx.io — collaborative browser terminal</span>
+        <span class="footer-hint"><i class="fas fa-eye"></i> Share the URL for read-only or write access</span>
+        <span class="footer-hint"><i class="fas fa-shield-halved"></i> Sessions are end-to-end encrypted</span>
+    </div>
+
+    <script>
+    (function () {
+        const vpsId = {{ vps.id }};
+        const installBtn = document.getElementById('installBtn');
+        const errorBox = document.getElementById('error-box');
+        const urlResult = document.getElementById('url-result');
+        const sshxUrlInput = document.getElementById('sshxUrl');
+        const copyBtn = document.getElementById('copyBtn');
+        const openFrameBtn = document.getElementById('openFrameBtn');
+        const sshxFrame = document.getElementById('sshx-frame');
+        const setupPanel = document.getElementById('setup-panel');
+        const backBtn = document.getElementById('backBtn');
+
+        function showError(msg) {
+            errorBox.style.display = 'block';
+            errorBox.innerHTML = '<i class="fas fa-triangle-exclamation me-1"></i>' + msg;
+        }
+        function hideError() { errorBox.style.display = 'none'; }
+
+        installBtn.addEventListener('click', async function () {
+            hideError();
+            urlResult.style.display = 'none';
+            installBtn.disabled = true;
+            installBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Installing sshx on VPS...';
+
+            try {
+                const resp = await fetch(`/vps/${vpsId}/sshx/install`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                });
+                const data = await resp.json();
+
+                if (data.success && data.url) {
+                    sshxUrlInput.value = data.url;
+                    urlResult.style.display = 'block';
+                    installBtn.innerHTML = '<i class="fas fa-check me-2"></i>SSHx Running';
+                    installBtn.style.background = '#198754';
+                } else {
+                    showError(data.error || 'Unknown error occurred.');
+                    installBtn.disabled = false;
+                    installBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>Install &amp; Start SSHx';
+                }
+            } catch (err) {
+                showError('Request failed: ' + err.message);
+                installBtn.disabled = false;
+                installBtn.innerHTML = '<i class="fas fa-bolt me-2"></i>Install &amp; Start SSHx';
+            }
+        });
+
+        copyBtn.addEventListener('click', function () {
+            navigator.clipboard.writeText(sshxUrlInput.value).then(() => {
+                copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+                setTimeout(() => { copyBtn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy'; }, 1500);
+            }).catch(() => {
+                sshxUrlInput.select();
+                document.execCommand('copy');
+            });
+        });
+
+        openFrameBtn.addEventListener('click', function () {
+            const url = sshxUrlInput.value;
+            if (!url) return;
+            sshxFrame.src = url;
+            sshxFrame.style.display = 'block';
+            setupPanel.style.display = 'none';
+        });
+
+        backBtn.addEventListener('click', function () {
+            sshxFrame.style.display = 'none';
+            sshxFrame.src = '';
+            setupPanel.style.display = 'flex';
+            setupPanel.style.alignItems = 'center';
+            setupPanel.style.justifyContent = 'center';
+        });
+
+        document.getElementById('exitBtn').addEventListener('click', function () {
+            window.location.href = '/vps/' + vpsId;
+        });
+
+        document.getElementById('fullscreenBtn').addEventListener('click', function () {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'F11') { e.preventDefault(); document.getElementById('fullscreenBtn').click(); }
+        });
+    })();
+    </script>
+</body>
+</html>

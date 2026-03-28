@@ -60,11 +60,41 @@
             <div class="form-group">
                 <label class="form-label">Operating System <span style="color: var(--accent-danger);">*</span></label>
                 <select id="os_version" class="form-control" required>
-                    {% for os in os_options %}
-                    <option value="{{ os.value }}" {% if loop.index == 1 %}selected{% endif %}>
-                        {{ os.label }}
-                    </option>
+                    <optgroup label="Ubuntu">
+                    {% for os in os_options if os.type == 'linux' and 'ubuntu' in os.icon %}
+                    <option value="{{ os.value }}" {% if loop.index == 1 %}selected{% endif %}>{{ os.label }}</option>
                     {% endfor %}
+                    </optgroup>
+                    <optgroup label="Debian">
+                    {% for os in os_options if os.type == 'linux' and 'debian' in os.icon %}
+                    <option value="{{ os.value }}">{{ os.label }}</option>
+                    {% endfor %}
+                    </optgroup>
+                    <optgroup label="CentOS / Rocky / AlmaLinux">
+                    {% for os in os_options if os.type == 'linux' and os.icon in ['centos','rocky','alma'] %}
+                    <option value="{{ os.value }}">{{ os.label }}</option>
+                    {% endfor %}
+                    </optgroup>
+                    <optgroup label="Fedora">
+                    {% for os in os_options if os.type == 'linux' and 'fedora' in os.icon %}
+                    <option value="{{ os.value }}">{{ os.label }}</option>
+                    {% endfor %}
+                    </optgroup>
+                    <optgroup label="Alpine">
+                    {% for os in os_options if os.type == 'linux' and 'alpine' in os.icon %}
+                    <option value="{{ os.value }}">{{ os.label }}</option>
+                    {% endfor %}
+                    </optgroup>
+                    <optgroup label="Other Linux">
+                    {% for os in os_options if os.type == 'linux' and os.icon not in ['ubuntu','debian','centos','rocky','alma','fedora','alpine'] %}
+                    <option value="{{ os.value }}">{{ os.label }}</option>
+                    {% endfor %}
+                    </optgroup>
+                    <optgroup label="Windows RDP">
+                    {% for os in os_options if os.type == 'rdp' %}
+                    <option value="{{ os.value }}">{{ os.label }}</option>
+                    {% endfor %}
+                    </optgroup>
                 </select>
             </div>
 
@@ -84,22 +114,13 @@
             </div>
 
             <div class="form-group">
-                <label class="form-label">IP Address Type</label>
-                <div class="radio-group" style="display:flex;gap:1.5rem;margin-bottom:0.5rem;">
-                    <label><input type="radio" name="ip_type" value="shared" checked onchange="toggleDedicatedIP()"> Shared IP</label>
-                    <label><input type="radio" name="ip_type" value="dedicated" onchange="toggleDedicatedIP()"> Dedicated IP</label>
-                </div>
-                <small style="color: var(--text-muted);">Select if the VPS should use the node's shared IP or a dedicated IP from the pool.</small>
-                <div id="dedicated-ip-section" style="display:none;margin-top:0.75rem;">
-                    <input type="text" id="dedicated_ip" class="form-control" placeholder="e.g. 192.168.1.100 (leave blank to auto-assign from pool)">
-                    <small style="color: var(--text-muted);">Enter an IPv4 address or leave blank to auto-assign from the node's IP pool.</small>
-                </div>
+                <label class="form-label">IP Address</label>
+                <input type="text" id="ip_address" class="form-control" placeholder="e.g., 10.0.0.100">
             </div>
 
             <div class="form-group">
-                <label class="form-label">Bandwidth Limit (Mbps)</label>
-                <input type="number" id="bandwidth_limit" class="form-control" value="0" min="0" max="10000" placeholder="0 = unlimited">
-                <small style="color: var(--text-muted);">0 = unlimited. Sets max network speed for this VPS.</small>
+                <label class="form-label">IP Alias (Display)</label>
+                <input type="text" id="ip_alias" class="form-control" placeholder="e.g., vps1.example.com">
             </div>
         </div>
 
@@ -186,12 +207,6 @@
 
 {% block extra_js %}
 <script>
-    // Toggle dedicated IP input
-    function toggleDedicatedIP() {
-        const isDedicated = document.querySelector('input[name="ip_type"]:checked').value === 'dedicated';
-        document.getElementById('dedicated-ip-section').style.display = isDedicated ? 'block' : 'none';
-    }
-
     // Update summary
     document.getElementById('cpu').addEventListener('input', function(e) {
         document.getElementById('summary-cpu').textContent = e.target.value + ' cores';
@@ -246,9 +261,8 @@
         const cpu = document.getElementById('cpu').value;
         const ram = document.getElementById('ram').value;
         const disk = document.getElementById('disk').value;
-        const ip_address_type = document.querySelector('input[name="ip_type"]:checked').value;
-        const dedicated_ip = document.getElementById('dedicated_ip').value.trim();
-        const bandwidth_limit = parseInt(document.getElementById('bandwidth_limit').value) || 0;
+        const ip_address = document.getElementById('ip_address').value;
+        const ip_alias = document.getElementById('ip_alias').value;
         const auto_suspend_enabled = document.getElementById('auto_suspend_enabled').checked;
         const expiration_days = auto_suspend_enabled ? parseInt(document.getElementById('expiration_days').value) : 0;
 
@@ -278,9 +292,8 @@
                     cpu: parseInt(cpu),
                     ram: parseInt(ram),
                     disk: parseInt(disk),
-                    ip_address_type: ip_address_type,
-                    dedicated_ip: dedicated_ip || null,
-                    bandwidth_limit: bandwidth_limit,
+                    ip_address: ip_address || null,
+                    ip_alias: ip_alias || null,
                     auto_suspend_enabled: auto_suspend_enabled,
                     expiration_days: expiration_days
                 })

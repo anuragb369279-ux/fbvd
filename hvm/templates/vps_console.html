@@ -1145,14 +1145,12 @@
         // Show toast notification
         function showToast(message, type = 'info') {
             const toastContainer = document.getElementById('toastContainer');
-            if (!toastContainer) return;
-            
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             
             let icon = 'fa-info-circle';
             if (type === 'success') icon = 'fa-check-circle';
-            if (type === 'error' || type === 'danger') icon = 'fa-exclamation-circle';
+            if (type === 'error') icon = 'fa-exclamation-circle';
             if (type === 'warning') icon = 'fa-exclamation-triangle';
             
             toast.innerHTML = `
@@ -1162,15 +1160,8 @@
             
             toastContainer.appendChild(toast);
             
-            // Trigger reflow for animation
-            toast.offsetHeight;
-            toast.style.opacity = '1';
-            toast.style.transform = 'translateY(0)';
-            
             setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(-20px)';
-                setTimeout(() => toast.remove(), 300);
+                toast.remove();
             }, 5000);
         }
         

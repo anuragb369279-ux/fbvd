@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# hvm.py - PVM Panel - Full Web-Based LXC Container VPS Management System
-# Version: v1.0-PRO-ULTIMATE - FIXED
+# hvm.py - HVM Panel - Full Web-Based LXC Container VPS Management System
+# Version: 5.0-PRO-ULTIMATE - FIXED
 
 import os
 import sys
-import platform
 import json
 import time
 import shlex
@@ -35,7 +34,6 @@ from functools import wraps
 from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlencode, parse_qs
-from dotenv import load_dotenv
 
 # Web framework imports
 import flask
@@ -89,79 +87,13 @@ except ImportError:
     logging.warning("PIL not installed - image optimization disabled")
 
 # Environment variables
-# Initialise logging - ALWAYS FIRST
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Load .env variables
-load_dotenv(os.path.join(BASE_DIR, '.env'))
-
-def get_hwid():
-    """Generate a unique hardware ID for this panel instance"""
-    import subprocess
-    import platform
-    
-    try:
-        if platform.system() == "Windows":
-            # Use machine GUID on Windows
-            cmd = 'reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid'
-            output = subprocess.check_output(cmd, shell=True).decode()
-            return output.split()[-1]
-        else:
-            # Use machine-id on Linux
-            for path in ['/etc/machine-id', '/var/lib/dbus/machine-id']:
-                if os.path.exists(path):
-                    with open(path, 'r') as f:
-                        return f.read().strip()
-            
-            # Fallback to UUID if machine-id is not available
-            import uuid
-            return str(uuid.getnode())
-    except:
-        # Ultimate fallback
-        import socket
-        return hashlib.sha256(socket.gethostname().encode()).hexdigest()
-
-LOG_FILE = os.getenv('LOG_FILE', os.path.join(BASE_DIR, 'hvm.log'))
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE, mode='a', encoding='utf-8'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger('pvm_panel')
-logger.info(f"PVM Panel starting - Log file: {LOG_FILE}")
-
-PANEL_NAME = os.getenv('PANEL_NAME', 'PVM PANEL')
-PANEL_VERSION = os.getenv('PANEL_VERSION', 'v1.0-PRO-ULTIMATE')
-PANEL_DEVELOPER = os.getenv('PANEL_DEVELOPER', 'ShadowGamerIND')
-
-# Stable Secret Key logic
-SECRET_KEY = os.getenv('SECRET_KEY')
-if not SECRET_KEY:
-    # Generate a stable key if not in .env
-    # Try to use HWID to make it stable across restarts even without .env
-    try:
-        stable_seed = get_hwid()
-        SECRET_KEY = hashlib.sha256(f"hvm-panel-stable-key-{stable_seed}".encode()).hexdigest()
-    except:
-        SECRET_KEY = secrets.token_urlsafe(32)
-    
-    # Proactively try to save it to .env for future stability
-    try:
-        env_path = os.path.join(BASE_DIR, '.env')
-        with open(env_path, 'a' if os.path.exists(env_path) else 'w') as f:
-            f.write(f"\n# Auto-generated stable secret key\nSECRET_KEY={SECRET_KEY}\n")
-    except:
-        pass
-
-DATABASE_PATH = os.getenv('DATABASE_PATH', os.path.join(BASE_DIR, 'hvm.db'))
+PANEL_NAME = os.getenv('PANEL_NAME', 'HVM PANEL')
+PANEL_VERSION = os.getenv('PANEL_VERSION', '5.1-PRO-ULTIMATE')
+PANEL_DEVELOPER = os.getenv('PANEL_DEVELOPER', 'Hopingboz')
+SECRET_KEY = os.getenv('SECRET_KEY', secrets.token_urlsafe(32))
+DATABASE_PATH = os.getenv('DATABASE_PATH', 'hvm.db')
 HOST = os.getenv('HOST', '0.0.0.0')
 PORT = int(os.getenv('PORT', 5000))
-LICENSE_SERVER_URL = os.getenv('LICENSE_SERVER_URL', 'https://hnwv7s-25589.csb.app')
-LICENSE_TIER = os.getenv('LICENSE_TIER', 'PANEL')
 MAIN_ADMIN_USERNAME = os.getenv('MAIN_ADMIN_USERNAME', 'admin')
 MAIN_ADMIN_PASSWORD = os.getenv('MAIN_ADMIN_PASSWORD', 'admin')
 MAIN_ADMIN_EMAIL = os.getenv('MAIN_ADMIN_EMAIL', 'admin@localhost')
@@ -173,13 +105,44 @@ STATS_UPDATE_INTERVAL = int(os.getenv('STATS_UPDATE_INTERVAL', 5))
 
 # OS Options for VPS Creation and Reinstall
 OS_OPTIONS = [
-    {"label": "Ubuntu 20.04 LTS", "value": "ubuntu:20.04", "version": "20.04", "icon": "ubuntu"},
-    {"label": "Ubuntu 22.04 LTS", "value": "ubuntu:22.04", "version": "22.04", "icon": "ubuntu"},
-    {"label": "Ubuntu 24.04 LTS", "value": "ubuntu:24.04", "version": "24.04", "icon": "ubuntu"},
-    {"label": "Debian 10 (Buster)", "value": "images:debian/10", "version": "10", "icon": "debian"},
-    {"label": "Debian 11 (Bullseye)", "value": "images:debian/11", "version": "11", "icon": "debian"},
-    {"label": "Debian 12 (Bookworm)", "value": "images:debian/12", "version": "12", "icon": "debian"},
-    {"label": "Debian 13 (Trixie)", "value": "images:debian/13", "version": "13", "icon": "debian"},
+    # Ubuntu
+    {"label": "Ubuntu 18.04 LTS", "value": "ubuntu:18.04", "version": "18.04", "icon": "ubuntu", "type": "linux"},
+    {"label": "Ubuntu 20.04 LTS", "value": "ubuntu:20.04", "version": "20.04", "icon": "ubuntu", "type": "linux"},
+    {"label": "Ubuntu 22.04 LTS", "value": "ubuntu:22.04", "version": "22.04", "icon": "ubuntu", "type": "linux"},
+    {"label": "Ubuntu 24.04 LTS", "value": "ubuntu:24.04", "version": "24.04", "icon": "ubuntu", "type": "linux"},
+    # Debian
+    {"label": "Debian 10 (Buster)", "value": "images:debian/10", "version": "10", "icon": "debian", "type": "linux"},
+    {"label": "Debian 11 (Bullseye)", "value": "images:debian/11", "version": "11", "icon": "debian", "type": "linux"},
+    {"label": "Debian 12 (Bookworm)", "value": "images:debian/12", "version": "12", "icon": "debian", "type": "linux"},
+    {"label": "Debian 13 (Trixie)", "value": "images:debian/13", "version": "13", "icon": "debian", "type": "linux"},
+    # CentOS / Rocky / AlmaLinux
+    {"label": "CentOS 7", "value": "images:centos/7", "version": "7", "icon": "centos", "type": "linux"},
+    {"label": "CentOS Stream 8", "value": "images:centos/8-Stream", "version": "8-Stream", "icon": "centos", "type": "linux"},
+    {"label": "CentOS Stream 9", "value": "images:centos/9-Stream", "version": "9-Stream", "icon": "centos", "type": "linux"},
+    {"label": "Rocky Linux 8", "value": "images:rockylinux/8", "version": "8", "icon": "rocky", "type": "linux"},
+    {"label": "Rocky Linux 9", "value": "images:rockylinux/9", "version": "9", "icon": "rocky", "type": "linux"},
+    {"label": "AlmaLinux 8", "value": "images:almalinux/8", "version": "8", "icon": "alma", "type": "linux"},
+    {"label": "AlmaLinux 9", "value": "images:almalinux/9", "version": "9", "icon": "alma", "type": "linux"},
+    # Fedora
+    {"label": "Fedora 38", "value": "images:fedora/38", "version": "38", "icon": "fedora", "type": "linux"},
+    {"label": "Fedora 39", "value": "images:fedora/39", "version": "39", "icon": "fedora", "type": "linux"},
+    {"label": "Fedora 40", "value": "images:fedora/40", "version": "40", "icon": "fedora", "type": "linux"},
+    # Alpine
+    {"label": "Alpine 3.18", "value": "images:alpine/3.18", "version": "3.18", "icon": "alpine", "type": "linux"},
+    {"label": "Alpine 3.19", "value": "images:alpine/3.19", "version": "3.19", "icon": "alpine", "type": "linux"},
+    {"label": "Alpine 3.20", "value": "images:alpine/3.20", "version": "3.20", "icon": "alpine", "type": "linux"},
+    # Arch / Kali / openSUSE
+    {"label": "Arch Linux", "value": "images:archlinux/current", "version": "current", "icon": "arch", "type": "linux"},
+    {"label": "Kali Linux", "value": "images:kali/current", "version": "current", "icon": "kali", "type": "linux"},
+    {"label": "openSUSE Leap 15.5", "value": "images:opensuse/15.5", "version": "15.5", "icon": "opensuse", "type": "linux"},
+    {"label": "openSUSE Tumbleweed", "value": "images:opensuse/tumbleweed", "version": "tumbleweed", "icon": "opensuse", "type": "linux"},
+    # Kali Linux RDP (xRDP pre-configured)
+    {"label": "Kali Linux RDP (xRDP)", "value": "images:kali/current/rdp", "version": "current-rdp", "icon": "kali", "type": "rdp"},
+    # Windows RDP (requires Windows LXC image pre-installed on node)
+    {"label": "Windows Server 2019 (RDP)", "value": "local:windows-server-2019", "version": "2019", "icon": "windows", "type": "rdp"},
+    {"label": "Windows Server 2022 (RDP)", "value": "local:windows-server-2022", "version": "2022", "icon": "windows", "type": "rdp"},
+    {"label": "Windows 10 (RDP)", "value": "local:windows-10", "version": "10", "icon": "windows", "type": "rdp"},
+    {"label": "Windows 11 (RDP)", "value": "local:windows-11", "version": "11", "icon": "windows", "type": "rdp"},
 ]
 
 # OS Icons mapping
@@ -190,8 +153,28 @@ OS_ICONS = {
     "alpine": "fas fa-mountain",
     "fedora": "fab fa-fedora",
     "rocky": "fas fa-mountain",
+    "alma": "fas fa-hat-cowboy",
+    "arch": "fab fa-linux",
+    "kali": "fas fa-dragon",
+    "opensuse": "fab fa-suse",
+    "windows": "fab fa-windows",
     "default": "fab fa-linux"
 }
+
+# Helper: check if an OS value is a Windows/RDP type
+def is_rdp_os(os_value: str) -> bool:
+    return any(o['value'] == os_value and o.get('type') == 'rdp' for o in OS_OPTIONS)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('hvm.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('hvm_panel')
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -254,10 +237,7 @@ def init_db():
             is_activated INTEGER DEFAULT 0,
             activated_at TEXT,
             activated_by TEXT,
-            created_at TEXT NOT NULL,
-            last_signature TEXT,
-            last_validation TEXT,
-            tier TEXT
+            created_at TEXT NOT NULL
         )''')
         
         # Users table
@@ -323,17 +303,15 @@ def init_db():
             updated_at TEXT NOT NULL
         )''')
         
-        # Auto-create LOCALNODE-1 on first run
-        cur.execute('SELECT COUNT(*) FROM nodes WHERE name = ?', ('LOCALNODE-1',))
-        if cur.fetchone()[0] == 0:
-            now = datetime.now().isoformat()
-            local_node_url = f"http://{YOUR_SERVER_IP}:{PORT}"
-            cur.execute('''INSERT INTO nodes 
-                (name, location, total_vps, tags, api_key, url, is_local, ip_addresses, status, created_at, updated_at) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                ('LOCALNODE-1', 'Local Server', 100, '["local", "default"]', None, local_node_url, 1, 
-                 json.dumps(['127.0.0.1']), 'online', now, now))
-            logger.info(f"LOCALNODE-1 auto-created with URL: {local_node_url}")
+        # Local node auto-creation disabled - can be manually created/deleted by admin
+        # Uncomment below to auto-create local node on first run:
+        # cur.execute('SELECT COUNT(*) FROM nodes WHERE is_local = 1')
+        # if cur.fetchone()[0] == 0:
+        #     cur.execute('''INSERT INTO nodes 
+        #         (name, location, total_vps, tags, api_key, url, is_local, ip_addresses, created_at, updated_at) 
+        #         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        #         ('Local Node', 'Local', 100, '[]', None, None, 1, 
+        #          json.dumps([YOUR_SERVER_IP]), datetime.now().isoformat(), datetime.now().isoformat()))
         
         
         # VPS table
@@ -369,10 +347,6 @@ def init_db():
             auto_suspend_enabled INTEGER DEFAULT 0,
             last_renewed_at TEXT,
             renewal_count INTEGER DEFAULT 0,
-            bandwidth_limit INTEGER DEFAULT 0,
-            bandwidth_used INTEGER DEFAULT 0,
-            bandwidth_reset_date TEXT,
-            root_password TEXT DEFAULT '',
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE RESTRICT
         )''')
@@ -383,25 +357,6 @@ def init_db():
         cur.execute('CREATE INDEX IF NOT EXISTS idx_vps_suspended ON vps(suspended)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_vps_expires_at ON vps(expires_at)')
         cur.execute('CREATE INDEX IF NOT EXISTS idx_vps_auto_suspend ON vps(auto_suspend_enabled)')
-
-        # IP Addresses table
-        cur.execute('''CREATE TABLE IF NOT EXISTS ip_addresses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            node_id INTEGER NOT NULL,
-            vps_id INTEGER,
-            ip_address TEXT UNIQUE NOT NULL,
-            is_dedicated INTEGER DEFAULT 1,
-            is_available INTEGER DEFAULT 1,
-            gateway TEXT,
-            notes TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY(node_id) REFERENCES nodes(id) ON DELETE CASCADE,
-            FOREIGN KEY(vps_id) REFERENCES vps(id) ON DELETE SET NULL
-        )''')
-        cur.execute('CREATE INDEX IF NOT EXISTS idx_ip_addresses_node_id ON ip_addresses(node_id)')
-        cur.execute('CREATE INDEX IF NOT EXISTS idx_ip_addresses_vps_id ON ip_addresses(vps_id)')
-        cur.execute('CREATE INDEX IF NOT EXISTS idx_ip_addresses_is_available ON ip_addresses(is_available)')
         
         # Settings table
         cur.execute('''CREATE TABLE IF NOT EXISTS settings (
@@ -415,11 +370,11 @@ def init_db():
         settings_init = [
             ('cpu_threshold', '90', 'CPU usage threshold for auto-suspension (%)'),
             ('ram_threshold', '90', 'RAM usage threshold for auto-suspension (%)'),
-            ('site_name', 'PVM PANEL', 'Site name'),
+            ('site_name', 'HVM PANEL', 'Site name'),
             ('site_description', 'High-Performance VPS Management Panel', 'Site description'),
             ('header_icon', '/static/img/logo.png', 'Header icon path'),
             ('favicon', '/static/img/favicon.ico', 'Favicon path'),
-            ('footer_text', 'Powered by PVM Panel', 'Footer text'),
+            ('footer_text', 'Powered by HVM Panel', 'Footer text'),
             ('maintenance_mode', '0', 'Maintenance mode (1=enabled, 0=disabled)'),
             ('maintenance_message', 'Site is under maintenance. Please check back later.', 'Maintenance message'),
             ('registration_enabled', '1', 'Registration enabled (1=enabled, 0=disabled)'),
@@ -436,22 +391,11 @@ def init_db():
             ('theme', 'default', 'Default theme'),
             ('language', 'en', 'Default language'),
             ('timezone', 'UTC', 'Default timezone'),
-            ('discord_webhook', '', 'Discord webhook URL for notifications'),
-            ('audit_log_remote', '0', 'Send audit logs to remote license server (1=enabled, 0=disabled)'),
         ]
         
         for key, value, description in settings_init:
             cur.execute('INSERT OR IGNORE INTO settings (key, value, description, updated_at) VALUES (?, ?, ?, ?)',
                        (key, value, description, datetime.now().isoformat()))
-
-        # Always force-update branding fields so renaming takes effect on restart
-        branding = {
-            'site_name': 'PVM PANEL',
-            'footer_text': 'Powered by PVM Panel',
-        }
-        for key, value in branding.items():
-            cur.execute('UPDATE settings SET value = ? WHERE key = ? AND (value LIKE ? OR value LIKE ?)',
-                       (value, key, '%HVM%', '%hvm%'))
         
         # Port allocations table
         cur.execute('''CREATE TABLE IF NOT EXISTS port_allocations (
@@ -476,90 +420,6 @@ def init_db():
             hits INTEGER DEFAULT 0,
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
             FOREIGN KEY(vps_container) REFERENCES vps(container_name) ON DELETE CASCADE
-        )''')
-        
-        # Firewall Rules table (Security Groups)
-        cur.execute('''CREATE TABLE IF NOT EXISTS firewall_rules (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            vps_id INTEGER NOT NULL,
-            direction TEXT DEFAULT 'in', -- in, out
-            protocol TEXT DEFAULT 'tcp', -- tcp, udp, icmp
-            port_range TEXT, -- 80, 443, 20-22
-            action TEXT DEFAULT 'allow', -- allow, deny
-            source_ip TEXT DEFAULT '0.0.0.0/0',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(vps_id) REFERENCES vps(id) ON DELETE CASCADE
-        )''')
-
-        # Scheduled Tasks table
-        cur.execute('''CREATE TABLE IF NOT EXISTS scheduled_tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            vps_id INTEGER NOT NULL,
-            task_type TEXT NOT NULL, -- backup, snapshot, restart
-            schedule TEXT NOT NULL, -- daily, weekly, custom
-            next_run TEXT NOT NULL,
-            last_run TEXT,
-            is_active INTEGER DEFAULT 1,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(vps_id) REFERENCES vps(id) ON DELETE CASCADE
-        )''')
-
-        # Webhooks table
-        cur.execute('''CREATE TABLE IF NOT EXISTS webhooks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT NOT NULL,
-            secret TEXT,
-            events TEXT DEFAULT 'all', -- create, delete, suspend, resume
-            is_active INTEGER DEFAULT 1,
-            created_at TEXT NOT NULL
-        )''')
-
-        # IP Blacklist table (Brute Force Protection)
-        cur.execute('''CREATE TABLE IF NOT EXISTS ip_blacklist (
-            ip TEXT PRIMARY KEY,
-            reason TEXT,
-            expires_at TEXT,
-            attempts INTEGER DEFAULT 1,
-            created_at TEXT NOT NULL
-        )''')
-        
-        # VPS Metrics table (Historical Stats)
-        cur.execute('''CREATE TABLE IF NOT EXISTS vps_metrics (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            vps_id INTEGER NOT NULL,
-            cpu_usage REAL,
-            ram_usage_bytes INTEGER,
-            disk_usage_bytes INTEGER,
-            network_in_bytes INTEGER,
-            network_out_bytes INTEGER,
-            timestamp TEXT NOT NULL,
-            FOREIGN KEY(vps_id) REFERENCES vps(id) ON DELETE CASCADE
-        )''')
-        cur.execute('CREATE INDEX IF NOT EXISTS idx_metrics_vps_timestamp ON vps_metrics(vps_id, timestamp)')
-
-        # Custom Scripts table
-        cur.execute('''CREATE TABLE IF NOT EXISTS custom_scripts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            content TEXT NOT NULL,
-            description TEXT,
-            is_public INTEGER DEFAULT 0,
-            user_id INTEGER,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
-        )''')
-
-        # Snapshot table
-        cur.execute('''CREATE TABLE IF NOT EXISTS snapshots (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            vps_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            description TEXT,
-            remote_id TEXT,
-            size INTEGER,
-            status TEXT DEFAULT 'ready',
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(vps_id) REFERENCES vps(id) ON DELETE CASCADE
         )''')
         
         cur.execute('CREATE INDEX IF NOT EXISTS idx_port_forwards_user_id ON port_forwards(user_id)')
@@ -653,28 +513,6 @@ def init_db():
         
         conn.commit()
 
-def migrate_vps_columns():
-    """Add missing columns to vps table for existing databases."""
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("PRAGMA table_info(vps)")
-        existing = {row[1] for row in cur.fetchall()}
-        new_cols = {
-            'bandwidth_limit': 'INTEGER DEFAULT 0',
-            'bandwidth_used':  'INTEGER DEFAULT 0',
-            'bandwidth_reset_date': 'TEXT',
-            'root_password': "TEXT DEFAULT ''",
-        }
-        for col, definition in new_cols.items():
-            if col not in existing:
-                try:
-                    cur.execute(f'ALTER TABLE vps ADD COLUMN {col} {definition}')
-                    logger.info(f"Added column vps.{col}")
-                except Exception as e:
-                    logger.warning(f"Could not add vps.{col}: {e}")
-        conn.commit()
-
-
 def migrate_discord_auth():
     """Add Discord authentication fields to users table"""
     with get_db() as conn:
@@ -734,130 +572,9 @@ def set_setting(key: str, value: str):
                    (key, value, datetime.now().isoformat()))
         conn.commit()
 
-def send_discord_notification(message: str, title: str = "PVM Panel Alert", color: int = 0x3b82f6):
-    """Send a notification to Discord using the configured webhook"""
-    webhook_url = get_setting('discord_webhook')
-    if not webhook_url:
-        return
-        
-    def _send():
-        try:
-            requests.post(webhook_url, json={
-                "embeds": [{
-                    "title": title,
-                    "description": message,
-                    "color": color,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "footer": {"text": f"Panel: {PANEL_NAME} | Version: {PANEL_VERSION}"}
-                }]
-            }, timeout=5)
-        except Exception as e:
-            logger.error(f"Failed to send Discord notification: {e}")
-            
-    threading.Thread(target=_send, daemon=True).start()
-
-# Security & Rate Limiting
-rate_limit_store = {}
-rate_limit_lock = threading.Lock()
-
-def check_rate_limit(key: str, limit: int, period: int) -> bool:
-    """Simple in-memory rate limiter"""
-    now = time.time()
-    with rate_limit_lock:
-        if key not in rate_limit_store:
-            rate_limit_store[key] = []
-        
-        # Clean old entries
-        rate_limit_store[key] = [t for t in rate_limit_store[key] if now - t < period]
-        
-        if len(rate_limit_store[key]) >= limit:
-            return False
-            
-        rate_limit_store[key].append(now)
-        return True
-
-def rate_limit(limit: int = 60, period: int = 60):
-    def decorator(f):
-        @wraps(f)
-        def wrapped(*args, **kwargs):
-            key = f"{request.remote_addr}:{request.endpoint}"
-            if not check_rate_limit(key, limit, period):
-                abort(429, description="Too many requests. Please slow down.")
-            return f(*args, **kwargs)
-        return wrapped
-    return decorator
-
-def is_ip_blacklisted(ip: str) -> bool:
-    """Check if an IP is currently blacklisted"""
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT expires_at FROM ip_blacklist WHERE ip = ?', (ip,))
-        row = cur.fetchone()
-        if not row:
-            return False
-            
-        expires_at = datetime.fromisoformat(row[0])
-        if datetime.now() > expires_at:
-            cur.execute('DELETE FROM ip_blacklist WHERE ip = ?', (ip,))
-            conn.commit()
-            return False
-        return True
-
-def record_failed_attempt(ip: str, reason: str = "failed_login"):
-    """Record a failed attempt and blacklist if necessary"""
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT attempts FROM ip_blacklist WHERE ip = ?', (ip,))
-        row = cur.fetchone()
-        
-        if row:
-            attempts = row[0] + 1
-            # Exponential backoff for blacklist duration
-            duration = min(attempts * 5, 1440) # Max 24 hours
-            expires_at = (datetime.now() + timedelta(minutes=duration)).isoformat()
-            cur.execute('UPDATE ip_blacklist SET attempts = ?, expires_at = ?, reason = ? WHERE ip = ?',
-                       (attempts, expires_at, reason, ip))
-        else:
-            expires_at = (datetime.now() + timedelta(minutes=5)).isoformat()
-            cur.execute('INSERT INTO ip_blacklist (ip, attempts, expires_at, reason, created_at) VALUES (?, 1, ?, ?, ?)',
-                       (ip, expires_at, reason, datetime.now().isoformat()))
-        conn.commit()
-
-# Webhook System
-def trigger_webhook(event: str, data: Dict):
-    """Trigger active webhooks for a specific event"""
-    def _trigger():
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute('SELECT url, secret, events FROM webhooks WHERE is_active = 1')
-            hooks = cur.fetchall()
-            
-            for hook in hooks:
-                hook_events = hook['events'].split(',')
-                if 'all' in hook_events or event in hook_events:
-                    try:
-                        payload = {
-                            "event": event,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "panel": PANEL_NAME,
-                            "data": data
-                        }
-                        
-                        headers = {"Content-Type": "application/json"}
-                        if hook['secret']:
-                            signature = hmac.new(hook['secret'].encode(), json.dumps(payload).encode(), hashlib.sha256).hexdigest()
-                            headers["X-HVM-Signature"] = signature
-                            
-                        requests.post(hook['url'], json=payload, headers=headers, timeout=5)
-                    except Exception as e:
-                        logger.error(f"Webhook failed: {hook['url']} - {e}")
-                        
-    threading.Thread(target=_trigger, daemon=True).start()
-
 def log_activity(user_id: Optional[int], action: str, resource_type: Optional[str] = None,
                  resource_id: Optional[str] = None, details: Optional[Dict] = None):
     try:
-        now = datetime.now().isoformat()
         with get_db() as conn:
             cur = conn.cursor()
             cur.execute('''INSERT INTO activity_logs 
@@ -867,30 +584,8 @@ def log_activity(user_id: Optional[int], action: str, resource_type: Optional[st
                  json.dumps(details) if details else None,
                  request.remote_addr if request else None,
                  request.user_agent.string if request and hasattr(request, 'user_agent') else None,
-                 now))
+                 datetime.now().isoformat()))
             conn.commit()
-            
-        # Trigger Discord notification for important actions
-        important_actions = ['login', 'create_vps', 'delete_vps', 'suspend_vps', 'admin_login', 'activate_license']
-        if action in important_actions or (action.startswith('admin_') and action != 'admin_dashboard'):
-            username = "System"
-            if user_id:
-                with get_db() as conn:
-                    cur = conn.cursor()
-                    cur.execute('SELECT username FROM users WHERE id = ?', (user_id,))
-                    row = cur.fetchone()
-                    if row: username = row[0]
-            
-            msg = f"**User:** {username}\n**Action:** {action}\n**Resource:** {resource_type or 'N/A'} (ID: {resource_id or 'N/A'})"
-            if details:
-                msg += f"\n**Details:** {json.dumps(details)}"
-            
-            color = 0x3b82f6 # Blue
-            if 'delete' in action or 'suspend' in action: color = 0xef4444 # Red
-            elif 'create' in action or 'activate' in action: color = 0x10b981 # Green
-            
-            send_discord_notification(msg, title=f"Activity Log: {action.replace('_', ' ').title()}", color=color)
-            
     except Exception as e:
         logger.error(f"Failed to log activity: {e}")
 
@@ -938,7 +633,6 @@ def get_user_notifications(user_id: int, unread_only: bool = False, limit: int =
         notifications = [dict(row) for row in cur.fetchall()]
         
         for notif in notifications:
-            notif['read'] = bool(notif['read'])
             if notif['data']:
                 try:
                     notif['data'] = json.loads(notif['data'])
@@ -970,121 +664,35 @@ def get_unread_notifications_count(user_id: int):
                    (user_id, datetime.now().isoformat()))
         return cur.fetchone()[0]
 
-# License key validation
-def is_license_activated():
-    """License check — always returns True for self-hosted use"""
-    return True
+# License system removed - panel runs without activation requirement
 
-def activate_license(license_key: str, activated_by: str = 'system') -> Tuple[bool, str]:
-    """Activate the panel with the provided license key by calling the license server"""
-    hwid = get_hwid()
-    
-    # Construct validation URL
-    url = f"{LICENSE_SERVER_URL}/api/validate/{license_key.strip()}"
-    params = {
-        "hwid": hwid,
-        "port": str(PORT),
-        "dev": f"PVM-PANEL-{PANEL_VERSION}"
-    }
-    
-    headers = {
-        "User-Agent": "PVM-Panel-Validator",
-        "Accept": "application/json"
-    }
-    
-    logger.info(f"Attempting license activation: URL={url}, HWID={hwid}")
-    
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=15)
-        logger.info(f"License server responded with status code: {response.status_code}")
-        
-        try:
-            data = response.json()
-        except Exception as json_err:
-            logger.error(f"Failed to parse license server response as JSON: {response.text[:200]}")
-            return False, "Server error: Invalid response format"
-        
-        if data.get('success'):
-            with get_db() as conn:
-                cur = conn.cursor()
-                now = datetime.now().isoformat()
-                
-                # Check if license already exists
-                cur.execute('SELECT id FROM license WHERE license_key = ?', (license_key,))
-                existing = cur.fetchone()
-                
-                if existing:
-                    # Update existing license
-                    cur.execute('''UPDATE license 
-                                  SET is_activated = 1, activated_at = ?, activated_by = ?, 
-                                      last_signature = ?, last_validation = ?, tier = ?
-                                  WHERE license_key = ?''',
-                               (now, activated_by, data.get('signature'), now, data.get('tier'), license_key))
-                else:
-                    # Insert new license
-                    cur.execute('''INSERT INTO license 
-                                  (license_key, is_activated, activated_at, activated_by, created_at, 
-                                   last_signature, last_validation, tier)
-                                  VALUES (?, 1, ?, ?, ?, ?, ?, ?)''',
-                               (license_key, now, activated_by, now, data.get('signature'), now, data.get('tier')))
-                
-                conn.commit()
-                logger.info(f"License {license_key} activated successfully by {activated_by}")
-                return True, data.get('message', 'License activated successfully')
-        else:
-            msg = data.get('message', 'Invalid license key')
-            logger.error(f"License activation failed: {msg}")
-            return False, msg
-            
-    except requests.exceptions.Timeout:
-        logger.error("License server request timed out")
-        return False, "License server connection timed out"
-    except requests.exceptions.RequestException as req_err:
-        logger.error(f"Network error during license activation: {req_err}")
-        return False, f"Network error: {str(req_err)}"
-    except Exception as e:
-        logger.error(f"Unexpected error during license activation: {e}")
-        return False, f"Unexpected error: {str(e)}"
-
-# Maintenance mode and license middleware
+# Maintenance mode middleware
 @app.before_request
 def check_maintenance_and_license():
-    # Check if IP is blacklisted
-    if is_ip_blacklisted(request.remote_addr):
-        abort(403, description="Your IP is temporarily blacklisted due to suspicious activity.")
-
-    # Skip checks for these endpoints
-    if request.endpoint in ['static', 'activate_license_page', 'activate_license_submit', 'health', 'favicon', 'serve_static']:
+    # Skip checks for static files and health endpoint
+    if request.endpoint in ['static', 'health', 'favicon', 'serve_static']:
         return None
-    
-    # Skip checks for static files
     if request.path.startswith('/static/'):
         return None
-    
-    # Check license activation first
-    if not is_license_activated():
-        # Redirect to license activation page
-        if request.endpoint != 'activate_license_page':
-            return redirect(url_for('activate_license_page'))
-    
+
     # Skip maintenance check for these endpoints
     if request.endpoint in ['login', 'logout', 'register']:
         return None
-    
+
     # Skip maintenance check for API endpoints
     if request.path.startswith('/api/'):
         return None
-    
+
     maintenance_mode = get_setting('maintenance_mode', '0') == '1'
-    
+
     if maintenance_mode:
         # Allow authenticated admin users
         if current_user.is_authenticated and current_user.is_admin:
             return None
-        
+
         return render_template('maintenance.html',
                              message=get_setting('maintenance_message', 'Site is under maintenance. Please check back later.'),
-                             panel_name=get_setting('site_name', 'PVM PANEL')), 503
+                             panel_name=get_setting('site_name', 'HVM PANEL')), 503
 
 @app.after_request
 def after_request(response):
@@ -1437,23 +1045,12 @@ def run_sync(coro):
         loop = None
     
     if loop and loop.is_running():
-        # We're inside an async context — run in a separate thread with its own event loop
         import concurrent.futures
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_run_in_new_loop, coro)
-            return future.result(timeout=60)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, coro)
+            return future.result()
     else:
         return asyncio.run(coro)
-
-
-def _run_in_new_loop(coro):
-    """Run a coroutine in a brand new event loop (for thread safety)."""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
 
 async def container_action_remote(node: Dict, container_name: str, action: str, timeout: int = 60) -> bool:
     """
@@ -1517,251 +1114,349 @@ async def apply_lxc_config(container_name: str, node_id: int):
         raise
 
 async def configure_container_ip(container_name: str, ip_address: str, node_id: int):
-    """Configure static IP address for LXC container - simplified approach"""
+    """Configure static IP address for LXC container with enhanced stability and DNS."""
     try:
-        # Validate IP address format
+        import ipaddress as _ipmod
+
         if not ip_address or not isinstance(ip_address, str):
             logger.warning(f"Invalid IP address format: {ip_address}")
             return
-        
-        # Clean IP address (remove any extra characters)
+
         ip_address = ip_address.strip()
-        
-        # Validate IP format
         try:
-            import ipaddress
-            ipaddress.ip_address(ip_address)
+            _ipmod.ip_address(ip_address)
         except ValueError as e:
             logger.error(f"Invalid IP address format '{ip_address}': {e}")
             return
-        
-        logger.info(f"Configuring IP {ip_address} for container {container_name}")
-        
-        # Wait for container to be ready
-        await asyncio.sleep(3)
-        
-        # Check if container is running
-        try:
-            status_result = await execute_lxc(container_name, f"info {container_name}", node_id=node_id, timeout=5)
-            if 'Status: Running' not in status_result and 'Status: RUNNING' not in status_result:
-                logger.warning(f"Container {container_name} not running, cannot configure IP")
-                return
-        except Exception as e:
-            logger.warning(f"Could not check container status: {e}")
-            return
-        
-        # Configure IP inside container (most reliable method)
-        logger.info(f"Configuring IP {ip_address} inside container {container_name}")
-        
-        try:
-            # Flush existing IPs on eth0
-            await execute_lxc(container_name, 
-                f"exec {container_name} -- ip addr flush dev eth0", 
-                node_id=node_id)
-            logger.info(f"Flushed existing IPs on eth0")
-        except Exception as e:
-            logger.warning(f"Could not flush eth0: {e}")
-        
-        try:
-            # Add new IP address
-            await execute_lxc(container_name, 
-                f"exec {container_name} -- ip addr add {ip_address}/24 dev eth0", 
-                node_id=node_id)
-            logger.info(f"Added IP {ip_address}/24 to eth0")
-        except Exception as e:
-            logger.error(f"Failed to add IP address: {e}")
-            return
-        
-        try:
-            # Bring interface up
-            await execute_lxc(container_name, 
-                f"exec {container_name} -- ip link set eth0 up", 
-                node_id=node_id)
-            logger.info(f"Brought eth0 up")
-        except Exception as e:
-            logger.warning(f"Could not bring eth0 up: {e}")
-        
-        try:
-            # Add default route (calculate gateway from IP)
-            gateway = '.'.join(ip_address.split('.')[:-1]) + '.1'
-            
-            # Remove existing default route
-            await execute_lxc(container_name, 
-                f"exec {container_name} -- ip route del default", 
-                node_id=node_id)
-        except:
-            pass  # Ignore if no default route exists
-        
-        try:
-            # Add new default route
-            gateway = '.'.join(ip_address.split('.')[:-1]) + '.1'
-            await execute_lxc(container_name, 
-                f"exec {container_name} -- ip route add default via {gateway}", 
-                node_id=node_id)
-            logger.info(f"Added default route via {gateway}")
-        except Exception as e:
-            logger.warning(f"Could not add default route: {e}")
-        
-        # Make IP configuration persistent
-        try:
-            # Detect OS type
-            os_check = await execute_lxc(container_name, 
-                f"exec {container_name} -- cat /etc/os-release", 
-                node_id=node_id)
-            
-            if 'alpine' in os_check.lower():
-                # Alpine Linux
-                network_config = f"""auto lo
-iface lo inet loopback
 
-auto eth0
-iface eth0 inet static
-    address {ip_address}
-    netmask 255.255.255.0
-    gateway {gateway}
-"""
-                await execute_lxc(container_name, 
-                    f"exec {container_name} -- sh -c 'echo \"{network_config}\" > /etc/network/interfaces'", 
-                    node_id=node_id)
-                logger.info(f"Created persistent network config for Alpine")
-                
-            elif 'ubuntu' in os_check.lower() or 'debian' in os_check.lower():
-                # Ubuntu/Debian with netplan
-                netplan_config = f"""network:
-  version: 2
-  ethernets:
-    eth0:
-      addresses:
-        - {ip_address}/24
-      gateway4: {gateway}
-      nameservers:
-        addresses:
-          - 8.8.8.8
-          - 8.8.4.4
-"""
-                # Create netplan config
-                await execute_lxc(container_name, 
-                    f"exec {container_name} -- sh -c 'mkdir -p /etc/netplan'", 
-                    node_id=node_id)
-                
-                await execute_lxc(container_name, 
-                    f"exec {container_name} -- sh -c 'cat > /etc/netplan/01-netcfg.yaml << EOF\n{netplan_config}\nEOF'", 
-                    node_id=node_id)
-                
-                # Try to apply netplan
-                try:
-                    await execute_lxc(container_name, 
-                        f"exec {container_name} -- netplan apply", 
-                        node_id=node_id)
-                    logger.info(f"Applied netplan configuration")
-                except:
-                    logger.warning(f"Could not apply netplan, but config is saved")
-            
-            logger.info(f"Created persistent network configuration")
-            
+        gateway = '.'.join(ip_address.split('.')[:-1]) + '.1'
+        logger.info(f"Configuring IP {ip_address} (gw {gateway}) for container {container_name}")
+
+        # Wait for container to be fully ready (retry up to 5 times)
+        for attempt in range(5):
+            await asyncio.sleep(3)
+            try:
+                status_result = await execute_lxc(container_name, f"info {container_name}", node_id=node_id, timeout=10)
+                if 'Status: Running' in status_result or 'Status: RUNNING' in status_result:
+                    break
+            except Exception:
+                pass
+            logger.warning(f"Container {container_name} not ready yet (attempt {attempt+1}/5)")
+        else:
+            logger.warning(f"Container {container_name} not running after retries, skipping IP config")
+            return
+
+        # Apply IP immediately via iproute2
+        for cmd, desc in [
+            (f"exec {container_name} -- ip link set eth0 up", "bring eth0 up"),
+            (f"exec {container_name} -- ip addr flush dev eth0", "flush eth0"),
+            (f"exec {container_name} -- ip addr add {ip_address}/24 dev eth0", f"add {ip_address}/24"),
+            (f"exec {container_name} -- ip route del default", "del default route"),
+            (f"exec {container_name} -- ip route add default via {gateway}", f"add default via {gateway}"),
+        ]:
+            try:
+                await execute_lxc(container_name, cmd, node_id=node_id)
+                logger.info(f"[net] {desc} OK")
+            except Exception as e:
+                logger.warning(f"[net] {desc} failed: {e}")
+
+        # Set DNS resolvers
+        try:
+            await execute_lxc(container_name,
+                f"exec {container_name} -- sh -c 'echo \"nameserver 8.8.8.8\\nnameserver 1.1.1.1\" > /etc/resolv.conf'",
+                node_id=node_id)
+            logger.info("[net] DNS resolvers set")
         except Exception as e:
-            logger.warning(f"Could not create persistent network config: {e}")
-        
+            logger.warning(f"[net] Could not set DNS: {e}")
+
+        # Detect OS and write persistent config
+        try:
+            os_check = await execute_lxc(container_name,
+                f"exec {container_name} -- cat /etc/os-release", node_id=node_id)
+            os_lower = os_check.lower()
+
+            if 'alpine' in os_lower:
+                # Alpine: /etc/network/interfaces
+                net_cfg = (
+                    "auto lo\niface lo inet loopback\n\n"
+                    f"auto eth0\niface eth0 inet static\n"
+                    f"    address {ip_address}\n    netmask 255.255.255.0\n"
+                    f"    gateway {gateway}\n"
+                )
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'printf \"%s\" \"{net_cfg}\" > /etc/network/interfaces'",
+                    node_id=node_id)
+                # Alpine DNS
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'echo \"nameserver 8.8.8.8\" > /etc/resolv.conf && echo \"nameserver 1.1.1.1\" >> /etc/resolv.conf'",
+                    node_id=node_id)
+                logger.info("[net] Alpine persistent config written")
+
+            elif 'ubuntu' in os_lower:
+                # Ubuntu: prefer netplan
+                netplan_cfg = (
+                    "network:\n  version: 2\n  ethernets:\n    eth0:\n"
+                    f"      addresses:\n        - {ip_address}/24\n"
+                    f"      routes:\n        - to: default\n          via: {gateway}\n"
+                    "      nameservers:\n        addresses: [8.8.8.8, 1.1.1.1, 8.8.4.4]\n"
+                )
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'mkdir -p /etc/netplan'", node_id=node_id)
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'printf \"%s\" \"{netplan_cfg}\" > /etc/netplan/01-netcfg.yaml'",
+                    node_id=node_id)
+                try:
+                    await execute_lxc(container_name,
+                        f"exec {container_name} -- netplan apply", node_id=node_id)
+                    logger.info("[net] netplan apply OK")
+                except Exception:
+                    logger.warning("[net] netplan apply failed, config saved for next boot")
+
+            elif 'debian' in os_lower or 'kali' in os_lower:
+                # Debian/Kali: /etc/network/interfaces
+                net_cfg = (
+                    "auto lo\niface lo inet loopback\n\n"
+                    f"auto eth0\niface eth0 inet static\n"
+                    f"    address {ip_address}\n    netmask 255.255.255.0\n"
+                    f"    gateway {gateway}\n    dns-nameservers 8.8.8.8 1.1.1.1\n"
+                )
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'printf \"%s\" \"{net_cfg}\" > /etc/network/interfaces'",
+                    node_id=node_id)
+                try:
+                    await execute_lxc(container_name,
+                        f"exec {container_name} -- ifdown eth0 && ifup eth0", node_id=node_id)
+                except Exception:
+                    pass
+                logger.info("[net] Debian/Kali persistent config written")
+
+            elif any(x in os_lower for x in ['centos', 'rhel', 'fedora', 'rocky', 'alma']):
+                # RHEL family: NetworkManager / ifcfg
+                ifcfg = (
+                    "TYPE=Ethernet\nBOOTPROTO=none\nNAME=eth0\nDEVICE=eth0\nONBOOT=yes\n"
+                    f"IPADDR={ip_address}\nPREFIX=24\nGATEWAY={gateway}\n"
+                    "DNS1=8.8.8.8\nDNS2=1.1.1.1\n"
+                )
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'mkdir -p /etc/sysconfig/network-scripts'",
+                    node_id=node_id)
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'printf \"%s\" \"{ifcfg}\" > /etc/sysconfig/network-scripts/ifcfg-eth0'",
+                    node_id=node_id)
+                try:
+                    await execute_lxc(container_name,
+                        f"exec {container_name} -- nmcli connection reload", node_id=node_id)
+                except Exception:
+                    pass
+                logger.info("[net] RHEL-family persistent config written")
+
+            elif 'arch' in os_lower:
+                # Arch: systemd-networkd
+                net_cfg = (
+                    "[Match]\nName=eth0\n\n[Network]\n"
+                    f"Address={ip_address}/24\nGateway={gateway}\n"
+                    "DNS=8.8.8.8\nDNS=1.1.1.1\n"
+                )
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'mkdir -p /etc/systemd/network'", node_id=node_id)
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'printf \"%s\" \"{net_cfg}\" > /etc/systemd/network/20-eth0.network'",
+                    node_id=node_id)
+                try:
+                    await execute_lxc(container_name,
+                        f"exec {container_name} -- systemctl enable --now systemd-networkd", node_id=node_id)
+                except Exception:
+                    pass
+                logger.info("[net] Arch systemd-networkd config written")
+
+            else:
+                # Generic fallback: /etc/network/interfaces
+                net_cfg = (
+                    "auto lo\niface lo inet loopback\n\n"
+                    f"auto eth0\niface eth0 inet static\n"
+                    f"    address {ip_address}\n    netmask 255.255.255.0\n"
+                    f"    gateway {gateway}\n"
+                )
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'printf \"%s\" \"{net_cfg}\" > /etc/network/interfaces'",
+                    node_id=node_id)
+                logger.info("[net] Generic persistent config written")
+
+        except Exception as e:
+            logger.warning(f"[net] Could not write persistent network config: {e}")
+
         logger.info(f"Successfully configured IP {ip_address} for {container_name}")
-            
+
     except Exception as e:
         logger.error(f"Failed to configure IP for {container_name}: {e}")
-        # Don't raise - IP configuration is not critical for container creation
+        # Non-fatal - container still usable via LXC bridge
 
 async def apply_internal_permissions(container_name: str, node_id: int):
     try:
         await asyncio.sleep(5)
-        
+
         try:
             os_check = await execute_lxc(container_name, f"exec {container_name} -- cat /etc/os-release", node_id=node_id)
-            if 'alpine' in os_check.lower():
-                is_alpine = True
-            else:
-                is_alpine = False
-        except:
-            is_alpine = False
-        
+            os_lower = os_check.lower()
+        except Exception:
+            os_lower = ''
+
+        is_alpine = 'alpine' in os_lower
+        is_rhel = any(x in os_lower for x in ['centos', 'rhel', 'fedora', 'rocky', 'alma'])
+        is_arch = 'arch' in os_lower
+
+        sysctl_cmds = [
+            "mkdir -p /etc/sysctl.d/",
+            "echo 'net.ipv4.ip_unprivileged_port_start=0' > /etc/sysctl.d/99-custom.conf",
+            "echo 'net.ipv4.ping_group_range=0 2147483647' >> /etc/sysctl.d/99-custom.conf",
+            "echo 'fs.inotify.max_user_watches=524288' >> /etc/sysctl.d/99-custom.conf",
+            "echo 'kernel.unprivileged_userns_clone=1' >> /etc/sysctl.d/99-custom.conf",
+            "sysctl -p /etc/sysctl.d/99-custom.conf || true",
+        ]
+
         if is_alpine:
-            commands = [
-                "mkdir -p /etc/sysctl.d/",
-                "echo 'net.ipv4.ip_unprivileged_port_start=0' > /etc/sysctl.d/99-custom.conf",
-                "echo 'net.ipv4.ping_group_range=0 2147483647' >> /etc/sysctl.d/99-custom.conf",
-                "echo 'fs.inotify.max_user_watches=524288' >> /etc/sysctl.d/99-custom.conf",
-                "echo 'kernel.unprivileged_userns_clone=1' >> /etc/sysctl.d/99-custom.conf",
-                "sysctl -p /etc/sysctl.d/99-custom.conf || true",
-                "apk update",
-                "apk add curl wget net-tools htop"
-            ]
+            pkg_cmds = ["apk update --no-cache || true", "apk add --no-cache curl wget net-tools htop bash || true"]
+        elif is_rhel:
+            pkg_cmds = ["yum install -y curl wget net-tools htop || dnf install -y curl wget net-tools htop || true"]
+        elif is_arch:
+            pkg_cmds = ["pacman -Sy --noconfirm curl wget net-tools htop || true"]
         else:
-            commands = [
-                "mkdir -p /etc/sysctl.d/",
-                "echo 'net.ipv4.ip_unprivileged_port_start=0' > /etc/sysctl.d/99-custom.conf",
-                "echo 'net.ipv4.ping_group_range=0 2147483647' >> /etc/sysctl.d/99-custom.conf",
-                "echo 'fs.inotify.max_user_watches=524288' >> /etc/sysctl.d/99-custom.conf",
-                "echo 'kernel.unprivileged_userns_clone=1' >> /etc/sysctl.d/99-custom.conf",
-                "sysctl -p /etc/sysctl.d/99-custom.conf || true",
-                "apt-get update -y || true",
-                "apt-get install -y curl wget net-tools htop || true"
+            pkg_cmds = [
+                "apt-get update -y -q || true",
+                "DEBIAN_FRONTEND=noninteractive apt-get install -y -q curl wget net-tools htop iproute2 || true",
             ]
-        
-        for cmd in commands:
+
+        for cmd in sysctl_cmds + pkg_cmds:
             try:
                 await execute_lxc(container_name, f"exec {container_name} -- sh -c \"{cmd}\"", node_id=node_id)
             except Exception as cmd_error:
                 logger.warning(f"Command failed in {container_name}: {cmd} - {cmd_error}")
-        
+
         logger.info(f"Internal permissions applied to {container_name}")
     except Exception as e:
         logger.error(f"Failed to apply internal permissions to {container_name}: {e}")
 
-async def configure_ssh_and_root_password(container_name: str, node_id: int, password: str = None):
-    """Configure SSH settings and set root password"""
+async def configure_ssh_and_root_password(container_name: str, node_id: int):
+    """Configure SSH settings and set root password to 'root'"""
     try:
-        await asyncio.sleep(2)  # Wait for container to be ready
+        await asyncio.sleep(2)
 
-        # Generate a secure password if not provided
-        if not password:
-            password = secrets.token_urlsafe(16)
-
-        # Install OpenSSH server if not present
         try:
             os_check = await execute_lxc(container_name, f"exec {container_name} -- cat /etc/os-release", node_id=node_id)
-            if 'alpine' in os_check.lower():
-                await execute_lxc(container_name, f"exec {container_name} -- apk add openssh", node_id=node_id)
+            os_lower = os_check.lower()
+        except Exception:
+            os_lower = ''
+
+        # Install OpenSSH server
+        try:
+            if 'alpine' in os_lower:
+                await execute_lxc(container_name, f"exec {container_name} -- apk add --no-cache openssh openssh-server", node_id=node_id)
+            elif any(x in os_lower for x in ['centos', 'rhel', 'fedora', 'rocky', 'alma']):
+                await execute_lxc(container_name, f"exec {container_name} -- sh -c 'yum install -y openssh-server 2>/dev/null || dnf install -y openssh-server 2>/dev/null || true'", node_id=node_id)
+            elif 'arch' in os_lower:
+                await execute_lxc(container_name, f"exec {container_name} -- pacman -Sy --noconfirm openssh", node_id=node_id)
+            elif 'kali' in os_lower:
+                await execute_lxc(container_name, f"exec {container_name} -- sh -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server 2>/dev/null || true'", node_id=node_id)
             else:
-                await execute_lxc(container_name, f"exec {container_name} -- apt-get install -y openssh-server", node_id=node_id)
+                await execute_lxc(container_name, f"exec {container_name} -- sh -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server 2>/dev/null || true'", node_id=node_id)
         except Exception as e:
             logger.warning(f"Could not install SSH server in {container_name}: {e}")
 
-        # Write SSH config
-        ssh_config = "PasswordAuthentication yes\nPermitRootLogin yes\nPubkeyAuthentication yes\nUsePAM yes\nSubsystem sftp /usr/lib/openssh/sftp-server"
-        escaped = ssh_config.replace('"', '\\"').replace('\n', '\\n')
-        await execute_lxc(container_name,
-            f'exec {container_name} -- sh -c "printf \'{ssh_config}\' > /etc/ssh/sshd_config"',
-            node_id=node_id)
+        # Write SSH config using base64 to avoid shell quoting issues
+        import base64 as _b64
+        ssh_config = (
+            "Port 22\n"
+            "PasswordAuthentication yes\n"
+            "PermitRootLogin yes\n"
+            "PubkeyAuthentication yes\n"
+            "ChallengeResponseAuthentication no\n"
+            "KbdInteractiveAuthentication no\n"
+            "UsePAM yes\n"
+            "X11Forwarding yes\n"
+            "PrintMotd no\n"
+            "AcceptEnv LANG LC_*\n"
+            "Subsystem sftp internal-sftp\n"
+        )
+        ssh_config_b64 = _b64.b64encode(ssh_config.encode()).decode()
+        try:
+            await execute_lxc(container_name,
+                f"exec {container_name} -- sh -c 'mkdir -p /etc/ssh && echo {ssh_config_b64} | base64 -d > /etc/ssh/sshd_config'",
+                node_id=node_id)
+            logger.info(f"SSH config written for {container_name}")
+        except Exception as e:
+            logger.warning(f"Could not write sshd_config: {e}")
 
-        # Restart SSH service
-        for cmd in [
-            f"exec {container_name} -- systemctl restart ssh",
-            f"exec {container_name} -- service ssh restart",
-            f"exec {container_name} -- /etc/init.d/sshd restart",
+        # Generate ALL host key types explicitly (fixes missing key issue)
+        for key_type, key_file in [
+            ('rsa',     '/etc/ssh/ssh_host_rsa_key'),
+            ('ecdsa',   '/etc/ssh/ssh_host_ecdsa_key'),
+            ('ed25519', '/etc/ssh/ssh_host_ed25519_key'),
         ]:
             try:
-                await execute_lxc(container_name, cmd, node_id=node_id)
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c 'test -f {key_file} || ssh-keygen -t {key_type} -N \"\" -f {key_file}'",
+                    node_id=node_id)
+                logger.info(f"SSH host key {key_type} ready for {container_name}")
+            except Exception as e:
+                logger.warning(f"Could not generate {key_type} host key: {e}")
+
+        # Also run ssh-keygen -A as a catch-all
+        try:
+            await execute_lxc(container_name, f"exec {container_name} -- ssh-keygen -A", node_id=node_id)
+        except Exception:
+            pass
+
+        # Fix permissions on host keys
+        try:
+            await execute_lxc(container_name,
+                f"exec {container_name} -- sh -c 'chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null; chmod 644 /etc/ssh/ssh_host_*_key.pub 2>/dev/null; true'",
+                node_id=node_id)
+        except Exception:
+            pass
+
+        # Ensure /run/sshd directory exists (required by newer OpenSSH)
+        try:
+            await execute_lxc(container_name,
+                f"exec {container_name} -- sh -c 'mkdir -p /run/sshd && chmod 755 /run/sshd'",
+                node_id=node_id)
+        except Exception:
+            pass
+
+        # Restart SSH service (try multiple service managers)
+        restarted = False
+        for restart_cmd in [
+            "systemctl enable ssh 2>/dev/null; systemctl restart ssh",
+            "systemctl enable sshd 2>/dev/null; systemctl restart sshd",
+            "rc-update add sshd default 2>/dev/null; rc-service sshd restart",
+            "service ssh restart",
+            "service sshd restart",
+            "/etc/init.d/sshd restart",
+            "/etc/init.d/ssh restart",
+            "/usr/sbin/sshd",
+        ]:
+            try:
+                await execute_lxc(container_name,
+                    f"exec {container_name} -- sh -c '{restart_cmd}'", node_id=node_id)
+                restarted = True
+                logger.info(f"SSH started via: {restart_cmd}")
                 break
-            except:
+            except Exception:
                 continue
 
-        # Set root password
-        await execute_lxc(container_name,
-            f"exec {container_name} -- sh -c \"echo 'root:{password}' | chpasswd\"",
-            node_id=node_id)
-        logger.info(f"Root password set for {container_name}")
+        if not restarted:
+            logger.warning(f"Could not start SSH in {container_name} — may need manual start")
 
-        return password
+        # Set root password
+        try:
+            await execute_lxc(container_name,
+                f"exec {container_name} -- sh -c \"echo 'root:root' | chpasswd\"", node_id=node_id)
+            logger.info(f"Root password set for {container_name}")
+        except Exception as e:
+            logger.error(f"Failed to set root password for {container_name}: {e}")
+
+        logger.info(f"SSH and root password configured for {container_name}")
     except Exception as e:
         logger.error(f"Failed to configure SSH for {container_name}: {e}")
-        return password
 
 # ============================================================================
 # Database helper functions
@@ -1823,8 +1518,8 @@ def update_node(node_id: int, **kwargs):
                 value = json.dumps(value)
             fields.append(f"{key} = ?")
             values.append(value)
-        values.append(datetime.now().isoformat())
         values.append(node_id)
+        values.append(datetime.now().isoformat())
         cur.execute(f'UPDATE nodes SET {", ".join(fields)}, updated_at = ? WHERE id = ?', values)
         conn.commit()
 
@@ -1909,44 +1604,6 @@ def get_vps_by_id(vps_id: int) -> Optional[Dict]:
             return vps
     return None
 
-# ============================================================================
-# IP Address Management
-# ============================================================================
-
-def add_ip_address(node_id, ip_address, gateway=None, notes=None):
-    now = datetime.now().isoformat()
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("INSERT INTO ip_addresses (node_id, ip_address, gateway, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (node_id, ip_address, gateway, notes, now, now))
-        return cur.lastrowid
-
-def remove_ip_address(ip_id):
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM ip_addresses WHERE id = ?", (ip_id,))
-
-def assign_ip_address(ip_id, vps_id):
-    now = datetime.now().isoformat()
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE ip_addresses SET vps_id = ?, is_available = 0, updated_at = ? WHERE id = ?",
-                    (vps_id, now, ip_id))
-
-def unassign_ip_address(ip_id):
-    now = datetime.now().isoformat()
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE ip_addresses SET vps_id = NULL, is_available = 1, updated_at = ? WHERE id = ?",
-                    (now, ip_id))
-
-def get_available_ip(node_id):
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM ip_addresses WHERE node_id = ? AND is_available = 1 AND is_dedicated = 1 ORDER BY RANDOM() LIMIT 1", (node_id,))
-        row = cur.fetchone()
-        return dict(row) if row else None
-
 def get_vps_by_container(container_name: str) -> Optional[Dict]:
     with get_db() as conn:
         cur = conn.cursor()
@@ -1973,21 +1630,10 @@ def get_vps_by_container(container_name: str) -> Optional[Dict]:
 
 def create_vps(user_id: int, node_id: int, container_name: str, ram: str, cpu: str, storage: str,
                config: str, os_version: str, hostname: Optional[str] = None,
-               ip_address_type: str = 'shared', expiration_days: int = 0, auto_suspend_enabled: bool = False,
-               ip_address: Optional[str] = None, bandwidth_limit: int = 0, **kwargs) -> int:
+               ip_address: Optional[str] = None, ip_alias: Optional[str] = None,
+               expiration_days: int = 0, auto_suspend_enabled: bool = False) -> int:
     now = datetime.now().isoformat()
     expires_at = None
-    # Use provided ip_address if available, otherwise default to None
-    ip_address = ip_address
-    ip_alias = None
-    ip_config = None
-
-    if ip_address_type == 'dedicated' and not ip_address:
-        available_ip = get_available_ip(node_id)
-        if not available_ip:
-            raise Exception("No available dedicated IP addresses on this node.")
-        ip_address = available_ip['ip_address']
-        ip_config = available_ip
     
     if auto_suspend_enabled and expiration_days > 0:
         expires_at = (datetime.now() + timedelta(days=expiration_days)).isoformat()
@@ -1997,16 +1643,13 @@ def create_vps(user_id: int, node_id: int, container_name: str, ram: str, cpu: s
         cur.execute('''INSERT INTO vps
             (user_id, node_id, container_name, hostname, ram, cpu, storage, config, os_version,
              status, created_at, updated_at, ip_address, ip_alias, shared_with, suspension_history, metadata,
-             expires_at, expiration_days, auto_suspend_enabled, renewal_count, bandwidth_limit)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+             expires_at, expiration_days, auto_suspend_enabled, renewal_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (user_id, node_id, container_name, hostname or container_name, ram, cpu, storage, config, os_version,
-             'creating', now, now, ip_address, ip_alias, '[]', '[]', '{}',
-             expires_at, expiration_days, 1 if auto_suspend_enabled else 0, 0, bandwidth_limit))
+             'stopped', now, now, ip_address, ip_alias, '[]', '[]', '{}',
+             expires_at, expiration_days, 1 if auto_suspend_enabled else 0, 0))
         conn.commit()
         vps_id = cur.lastrowid
-
-        if ip_address_type == 'dedicated' and ip_config:
-            assign_ip_address(ip_config['id'], vps_id)
         
         cur.execute('UPDATE nodes SET used_vps = (SELECT COUNT(*) FROM vps WHERE node_id = ?) WHERE id = ?',
                    (node_id, node_id))
@@ -2014,146 +1657,13 @@ def create_vps(user_id: int, node_id: int, container_name: str, ram: str, cpu: s
         
         log_activity(user_id, 'create_vps', 'vps', str(vps_id), {'container': container_name})
         
-        # Asynchronously create the container on the node
-        threading.Thread(target=create_container_on_node, args=(vps_id, os_version, ip_config), daemon=True).start()
-
         if auto_suspend_enabled and expiration_days > 0:
-            create_notification(user_id, 'success', 'VPS Creation Started', 
-                              f'Your VPS {container_name} is being created. It will auto-suspend in {expiration_days} days.')
+            create_notification(user_id, 'success', 'VPS Created', 
+                              f'Your VPS {container_name} has been created successfully. It will auto-suspend in {expiration_days} days.')
         else:
-            create_notification(user_id, 'success', 'VPS Creation Started', f'Your VPS {container_name} is being created.')
+            create_notification(user_id, 'success', 'VPS Created', f'Your VPS {container_name} has been created successfully.')
         
         return vps_id
-
-def create_container_on_node(vps_id: int, os_image: str, ip_config: Optional[Dict]):
-    with app.app_context():
-        vps = get_vps_by_id(vps_id)
-        if not vps:
-            return
-
-        node = get_node(vps['node_id'])
-        if not node:
-            update_vps(vps_id, status='error')
-            return
-
-        container_name = vps['container_name']
-        node_id = vps['node_id']
-
-        try:
-            if node.get('is_local'):
-                ram_str = vps.get('ram', '1GB')
-                cpu_str = vps.get('cpu', '1')
-                storage_str = vps.get('storage', '10GB')
-
-                ram_mb = int(''.join(filter(str.isdigit, ram_str)) or 1024)
-                if 'GB' in ram_str.upper():
-                    ram_mb = ram_mb * 1024
-                cpu = int(''.join(filter(str.isdigit, cpu_str)) or 1)
-                disk_gb = int(''.join(filter(str.isdigit, storage_str)) or 10)
-                bandwidth_limit = int(vps.get('bandwidth_limit') or 0)
-
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    password = loop.run_until_complete(_create_local_container(
-                        container_name, os_image, ram_mb, cpu, disk_gb, node_id, ip_config, bandwidth_limit
-                    ))
-                finally:
-                    loop.close()
-
-                # Save password and mark running
-                update_vps(vps_id, status='running',
-                           root_password=password or '',
-                           last_started=datetime.now().isoformat())
-                logger.info(f"Local container {container_name} created successfully")
-            else:
-                if not node.get('url'):
-                    raise Exception(f"Node '{node.get('name')}' has no URL configured")
-
-                import requests
-                url = f"{node['url']}/api/container/create"
-                headers = {"X-API-Key": node["api_key"]}
-                payload = {'name': container_name, 'os_image': os_image, 'ip_config': ip_config}
-                verify_ssl = bool(node.get('verify_ssl', 1))
-                response = requests.post(url, json=payload, headers=headers, timeout=300, verify=verify_ssl)
-
-                if response.status_code == 200 and response.json().get('success'):
-                    rdata = response.json()
-                    update_vps(vps_id, status='stopped',
-                               root_password=rdata.get('password', ''))
-                else:
-                    raise Exception(response.json().get('error', 'Unknown error from node'))
-
-        except Exception as e:
-            logger.error(f"Container creation failed for {container_name}: {e}", exc_info=True)
-            update_vps(vps_id, status='error')
-            create_notification(vps['user_id'], 'danger', 'VPS Creation Failed',
-                                f'Failed to create VPS {container_name}: {str(e)}')
-
-
-async def _create_local_container(container_name: str, os_image: str, ram_mb: int,
-                                   cpu: int, disk_gb: int, node_id: int, ip_config: Optional[Dict],
-                                   bandwidth_limit: int = 0):
-    """Create and configure an LXC container on the local node."""
-    logger.info(f"Creating local container {container_name} with OS {os_image}")
-
-    # Init container
-    await execute_lxc(container_name,
-        f"init {os_image} {container_name} -s {DEFAULT_STORAGE_POOL}",
-        node_id=node_id, timeout=300)
-
-    # Apply resource limits
-    await execute_lxc(container_name,
-        f"config set {container_name} limits.memory {ram_mb}MB",
-        node_id=node_id)
-    await execute_lxc(container_name,
-        f"config set {container_name} limits.cpu {cpu}",
-        node_id=node_id)
-    await execute_lxc(container_name,
-        f"config device override {container_name} root size={disk_gb}GB",
-        node_id=node_id)
-
-    # Apply bandwidth limit if set (in Mbit/s)
-    if bandwidth_limit and bandwidth_limit > 0:
-        try:
-            await execute_lxc(container_name,
-                f"config device set {container_name} eth0 limits.egress={bandwidth_limit}Mbit limits.ingress={bandwidth_limit}Mbit",
-                node_id=node_id)
-        except Exception as e:
-            logger.warning(f"Bandwidth limit failed for {container_name}: {e}")
-
-    # Apply extra LXC config (nesting, etc.)
-    await apply_lxc_config(container_name, node_id)
-
-    # Start the container
-    await execute_lxc(container_name,
-        f"start {container_name}",
-        node_id=node_id, timeout=120)
-
-    # Wait for container to fully boot
-    await asyncio.sleep(5)
-
-    # Configure dedicated IP if provided
-    if ip_config and ip_config.get('ip_address'):
-        try:
-            await configure_container_ip(container_name, ip_config['ip_address'], node_id)
-        except Exception as e:
-            logger.warning(f"IP config failed for {container_name}: {e}")
-
-    # Apply internal permissions and SSH
-    try:
-        await apply_internal_permissions(container_name, node_id)
-    except Exception as e:
-        logger.warning(f"Permissions setup failed for {container_name}: {e}")
-
-    password = None
-    try:
-        password = await configure_ssh_and_root_password(container_name, node_id)
-    except Exception as e:
-        logger.warning(f"SSH setup failed for {container_name}: {e}")
-
-    logger.info(f"Local container {container_name} fully initialized")
-    return password
 
 def update_vps(vps_id: int, **kwargs):
     logger.info(f"=== update_vps called for VPS {vps_id} ===")
@@ -2171,8 +1681,8 @@ def update_vps(vps_id: int, **kwargs):
             fields.append(f"{key} = ?")
             values.append(value)
         
-        values.append(datetime.now().isoformat())
         values.append(vps_id)
+        values.append(datetime.now().isoformat())
         
         sql = f'UPDATE vps SET {", ".join(fields)}, updated_at = ? WHERE id = ?'
         logger.info(f"Executing SQL: {sql}")
@@ -2277,19 +1787,9 @@ def refresh_vps_status(vps_id):
     
     try:
         status = run_sync(get_container_status(vps['container_name'], vps['node_id']))
-        # Only update DB if LXC confirms running, or if it's a definitive non-running state
-        # Never overwrite 'running' with 'unknown' or 'not_found' from a single poll
-        if status == 'running':
-            if vps['status'] != 'running':
-                update_vps(vps_id, status='running', last_started=datetime.now().isoformat())
-        elif status == 'stopped' and vps['status'] == 'running':
-            # Don't immediately mark as stopped — could be a transient poll failure
-            # Only update if explicitly stopped by user action (handled in vps_control)
-            pass
-        elif status not in ('unknown', 'not_found'):
-            if status != vps['status']:
-                update_vps(vps_id, status=status)
-        return status if status != 'not_found' else vps.get('status', 'unknown')
+        if status != vps['status']:
+            update_vps(vps_id, status=status)
+        return status
     except Exception as e:
         logger.error(f"Error refreshing VPS {vps_id} status: {e}")
         return vps.get('status', 'unknown')
@@ -2509,30 +2009,6 @@ async def update_port_forward_hit(host_port: int):
                    (datetime.now().isoformat(), host_port))
         conn.commit()
 
-def parse_size_to_gb(size_str: str) -> float:
-    """Helper to parse memory/disk strings (e.g., '512MB', '1.5GB', '10G') to GB float"""
-    if not size_str:
-        return 0.0
-    
-    try:
-        size_str = str(size_str).strip().upper()
-        # Handle 'GB', 'G'
-        if 'GB' in size_str:
-            return float(size_str.replace('GB', '').strip())
-        if size_str.endswith('G'):
-            return float(size_str[:-1].strip())
-        
-        # Handle 'MB', 'M'
-        if 'MB' in size_str:
-            return float(size_str.replace('MB', '').strip()) / 1024
-        if size_str.endswith('M'):
-            return float(size_str[:-1].strip()) / 1024
-        
-        # Default to raw float if possible
-        return float(size_str)
-    except (ValueError, TypeError):
-        return 0.0
-
 def relativeTime(dt):
     if not dt:
         return "Never"
@@ -2575,24 +2051,6 @@ def get_host_cpu_usage():
             pass
         except Exception as e:
             logger.debug(f"psutil CPU method failed: {e}")
-        
-        # Method 1.5: Windows-specific wmic fallback
-        if platform.system() == 'Windows':
-            try:
-                # Try wmic first
-                cmd = "wmic cpu get loadpercentage"
-                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode()
-                for line in output.splitlines():
-                    if line.strip().isdigit():
-                        return float(line.strip())
-                
-                # Fallback to powershell if wmic fails
-                cmd = "powershell -NoProfile -Command \"(Get-CimInstance Win32_Processor).LoadPercentage\""
-                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode().strip()
-                if output.isdigit():
-                    return float(output)
-            except Exception as e:
-                logger.debug(f"Windows CPU detection fallback failed: {e}")
         
         # Method 2: Try mpstat
         if shutil.which("mpstat"):
@@ -2684,42 +2142,6 @@ def get_host_ram_usage():
         except Exception as e:
             logger.debug(f"psutil RAM method failed: {e}")
         
-        # Method 1.5: Windows-specific RAM detection fallback
-        if platform.system() == 'Windows':
-            try:
-                # Get total physical memory in bytes
-                cmd_total = "wmic computer_system get totalphysicalmemory"
-                total_output = subprocess.check_output(cmd_total, shell=True, stderr=subprocess.DEVNULL).decode().splitlines()
-                total_bytes = 0
-                for line in total_output:
-                    if line.strip().isdigit():
-                        total_bytes = int(line.strip())
-                        break
-                
-                # Get free physical memory in KB
-                cmd_free = "wmic OS get freephysicalmemory"
-                free_output = subprocess.check_output(cmd_free, shell=True, stderr=subprocess.DEVNULL).decode().splitlines()
-                free_kb = 0
-                for line in free_output:
-                    if line.strip().isdigit():
-                        free_kb = int(line.strip())
-                        break
-                
-                if total_bytes > 0 and free_kb > 0:
-                    total_mb = total_bytes // (1024**2)
-                    free_mb = free_kb // 1024
-                    used_mb = total_mb - free_mb
-                    percent = (used_mb / total_mb * 100) if total_mb > 0 else 0
-                    
-                    return {
-                        'total': total_mb,
-                        'used': used_mb,
-                        'free': free_mb,
-                        'percent': float(percent)
-                    }
-            except Exception as e:
-                logger.debug(f"Windows RAM detection fallback failed: {e}")
-        
         # Method 2: Try free command
         try:
             result = subprocess.run(['free', '-m'], capture_output=True, text=True, timeout=3)
@@ -2798,11 +2220,7 @@ def get_host_disk_usage():
         # Method 2: Try shutil.disk_usage (Python built-in)
         try:
             import shutil
-            # On Windows, use C:\ if / doesn't exist
-            path = '/'
-            if platform.system() == 'Windows' and not os.path.exists(path):
-                path = 'C:\\'
-            usage = shutil.disk_usage(path)
+            usage = shutil.disk_usage('/')
             total_gb = usage.total / (1024**3)
             used_gb = usage.used / (1024**3)
             free_gb = usage.free / (1024**3)
@@ -2815,33 +2233,6 @@ def get_host_disk_usage():
             }
         except Exception as e:
             logger.debug(f"shutil disk method failed: {e}")
-        
-        # Method 2.5: Windows-specific disk detection fallback
-        if platform.system() == 'Windows':
-            try:
-                # Use wmic for disk usage on Windows
-                cmd = "wmic logicaldisk where \"DeviceID='C:'\" get size,freespace"
-                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode().splitlines()
-                for line in output:
-                    parts = line.split()
-                    if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
-                        free_bytes = int(parts[0])
-                        total_bytes = int(parts[1])
-                        used_bytes = total_bytes - free_bytes
-                        
-                        total_gb = total_bytes / (1024**3)
-                        used_gb = used_bytes / (1024**3)
-                        free_gb = free_bytes / (1024**3)
-                        percent = (used_bytes / total_bytes * 100) if total_bytes > 0 else 0
-                        
-                        return {
-                            'total': f"{total_gb:.1f}G",
-                            'used': f"{used_gb:.1f}G",
-                            'free': f"{free_gb:.1f}G",
-                            'percent': f"{percent:.0f}%"
-                        }
-            except Exception as e:
-                logger.debug(f"Windows disk detection fallback failed: {e}")
         
         # Method 3: Try df command
         try:
@@ -2890,21 +2281,7 @@ def get_host_disk_usage():
         return {'total': 'Unknown', 'used': 'Unknown', 'free': 'Unknown', 'percent': 'Unknown'}
 
 def get_host_uptime():
-    """Get host uptime with cross-platform support"""
     try:
-        if platform.system() == 'Windows':
-            try:
-                import ctypes
-                tick_count = ctypes.windll.kernel32.GetTickCount64()
-                uptime_seconds = tick_count / 1000
-                days = int(uptime_seconds // 86400)
-                hours = int((uptime_seconds % 86400) // 3600)
-                minutes = int((uptime_seconds % 3600) // 60)
-                return f"{days}d {hours}h {minutes}m"
-            except Exception as e:
-                logger.debug(f"Windows uptime detection failed: {e}")
-                return "Unknown"
-
         with open('/proc/uptime', 'r') as f:
             uptime_seconds = float(f.readline().split()[0])
             days = int(uptime_seconds // 86400)
@@ -3020,54 +2397,6 @@ def mark_node_offline(node_id: int):
     except Exception as e:
         logger.error(f"Failed to mark node {node_id} offline: {e}")
 
-@app.route('/api/container/firewall/sync', methods=['POST']) # Restored original route name for compatibility if needed
-@login_required
-@admin_required
-def api_firewall_sync_route():
-    """Sync firewall rules from DB to Node (Emergency/Manual)"""
-    data = request.get_json() or {}
-    vps_id = data.get('vps_id')
-    if not vps_id: return jsonify({'success': False, 'error': 'Missing VPS ID'}), 400
-    
-    results = api_firewall_sync_internal(vps_id)
-    if results is None:
-        return jsonify({'success': False, 'error': 'VPS or Node not found'}), 404
-            
-    return jsonify({'success': True, 'results': results})
-
-def api_firewall_sync_internal(vps_id):
-    """Internal logic to sync firewall rules"""
-    vps = get_vps_by_id(vps_id)
-    if not vps: return None
-    
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM firewall_rules WHERE vps_id = ?', (vps_id,))
-        rules = [dict(row) for row in cur.fetchall()]
-        
-    node = get_node(vps['node_id'])
-    if not node: return None
-    
-    results = []
-    # Ensure firewall is enabled first
-    try:
-        import requests
-        url = f"{node['url']}/api/container/firewall"
-        headers = {"X-API-Key": node["api_key"]}
-        requests.post(url, json={'container': vps['container_name'], 'action': 'enable'}, headers=headers, timeout=10)
-    except: pass
-
-    for rule in rules:
-        try:
-            import requests
-            url = f"{node['url']}/api/container/firewall"
-            headers = {"X-API-Key": node["api_key"]}
-            res = requests.post(url, json={'container': vps['container_name'], 'action': 'add_rule', 'rule': rule}, headers=headers, timeout=10)
-            results.append({'rule_id': rule['id'], 'success': res.status_code == 200})
-        except:
-            results.append({'rule_id': rule['id'], 'success': False})
-    return results
-
 async def get_node_status(node_id: int) -> Dict:
     """Get node status with improved error handling"""
     node = get_node(node_id)
@@ -3181,11 +2510,6 @@ async def get_container_status(container_name: str, node_id: Optional[int] = Non
         logger.warning(f"Status line not found for container {container_name}")
         return "unknown"
     except Exception as e:
-        err = str(e)
-        # Container doesn't exist in LXC — not an error, just not created yet
-        if "not found" in err.lower() or "instance not found" in err.lower() or "does not exist" in err.lower():
-            logger.debug(f"Container {container_name} not found in LXC")
-            return "not_found"
         logger.error(f"Error getting status for {container_name}: {e}")
         return "unknown"
 
@@ -3221,7 +2545,7 @@ async def get_container_stats(container_name: str, node_id: Optional[int] = None
                 cpu = 0.0
                 ram = {"used": 0, "total": 0, "pct": 0.0}
                 disk = {"use_percent": "0%"}
-                uptime = "Stopped" if status == "stopped" else "N/A"
+                uptime = "Stopped"
                 processes = 0
                 network = {}
             
@@ -3362,10 +2686,7 @@ awk "{
 rm -f /tmp/cpu1 /tmp/cpu2
 '"""
         try:
-            # We must pass the script correctly to sh -c within the container
-            script_inner = simple_script[7:-1]
-            escaped_script = script_inner.replace('"', '\\"')
-            result = await execute_lxc(container_name, f"exec {container_name} -- sh -c \"{escaped_script}\"", node_id=node_id)
+            result = await execute_lxc(container_name, f"exec {container_name} -- {simple_script}", node_id=node_id)
             cpu_pct = float(result.strip())
             if 0 <= cpu_pct <= 100:
                 logger.debug(f"CPU for {container_name}: {cpu_pct}%")
@@ -3676,58 +2997,20 @@ app.register_blueprint(api_bp)
 logger.info("API blueprint registered at /api/v1")
 
 # ============================================================================
-# Web Routes - License Activation
-# ============================================================================
-@app.route('/activate-license')
-def activate_license_page():
-    """Show license activation page"""
-    if is_license_activated():
-        return redirect(url_for('index'))
-    return render_template('activate_license.html', panel_name=get_setting('site_name', 'PVM PANEL'))
-
-@app.route('/activate-license', methods=['POST'])
-def activate_license_submit():
-    """Handle license activation submission"""
-    if is_license_activated():
-        return jsonify({'success': False, 'error': 'License already activated'}), 400
-    
-    # Try to get license key from JSON first, then from form data
-    if request.is_json:
-        data = request.get_json()
-        license_key = data.get('license_key', '').strip()
-    else:
-        license_key = request.form.get('license_key', '').strip()
-    
-    if not license_key:
-        return jsonify({'success': False, 'error': 'Please enter a license key'}), 400
-    
-    success, message = activate_license(license_key, 'initial_activation')
-    if success:
-        return jsonify({'success': True, 'message': message}), 200
-    else:
-        return jsonify({'success': False, 'error': message}), 400
-
-# ============================================================================
 # Web Routes - Authentication
 # ============================================================================
 @app.route('/')
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
-    return render_template('index.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+    return render_template('index.html', panel_name=get_setting('site_name', 'HVM PANEL'))
 
 @app.route('/login', methods=['GET', 'POST'])
-@rate_limit(limit=10, period=60) # Brute force protection
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        ip = request.remote_addr
-        if is_ip_blacklisted(ip):
-            flash('Your IP is temporarily blacklisted due to multiple failed login attempts.', 'danger')
-            return render_template('login.html', panel_name=get_setting('site_name', 'PVM PANEL'))
-
         username_or_email = request.form.get('username')  # Can be username or email
         password = request.form.get('password')
         remember = request.form.get('remember') == 'on'
@@ -3748,22 +3031,19 @@ def login():
                 cur = conn.cursor()
                 cur.execute('UPDATE users SET last_login = ?, last_active = ? WHERE id = ?',
                            (now, now, user.id))
-                # Clear blacklist entries on successful login
-                cur.execute('DELETE FROM ip_blacklist WHERE ip = ?', (request.remote_addr,))
                 conn.commit()
             
             log_activity(user.id, 'login', 'auth', None, {'ip': request.remote_addr})
-            create_notification(user.id, 'info', 'New Login', f'New login from {request.remote_addr}')
+            create_notification(user.id, 'info', 'New Login', f'New login from {request.remote_addr}', expires_in=86400)
             flash(f'Welcome back, {user.username}!', 'success')
             
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('dashboard'))
         else:
-            record_failed_attempt(request.remote_addr, f"failed_login:{username_or_email}")
             flash('Invalid username/email or password', 'danger')
             log_activity(None, 'login_failed', 'auth', None, {'username_or_email': username_or_email, 'ip': request.remote_addr})
     
-    return render_template('login.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+    return render_template('login.html', panel_name=get_setting('site_name', 'HVM PANEL'))
 
 @app.route('/2fa', methods=['GET', 'POST'])
 def two_factor():
@@ -3787,7 +3067,7 @@ def two_factor():
         else:
             flash('Invalid 2FA code', 'danger')
     
-    return render_template('2fa.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+    return render_template('2fa.html', panel_name=get_setting('site_name', 'HVM PANEL'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -3808,23 +3088,23 @@ def register():
         
         if not terms:
             flash('You must accept the terms of service', 'danger')
-            return render_template('register.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+            return render_template('register.html', panel_name=get_setting('site_name', 'HVM PANEL'))
         
         if password != confirm_password:
             flash('Passwords do not match', 'danger')
-            return render_template('register.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+            return render_template('register.html', panel_name=get_setting('site_name', 'HVM PANEL'))
         
         if len(password) < 8:
             flash('Password must be at least 8 characters', 'danger')
-            return render_template('register.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+            return render_template('register.html', panel_name=get_setting('site_name', 'HVM PANEL'))
         
         if User.get_by_username(username):
             flash('Username already taken', 'danger')
-            return render_template('register.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+            return render_template('register.html', panel_name=get_setting('site_name', 'HVM PANEL'))
         
         if User.get_by_email(email):
             flash('Email already registered', 'danger')
-            return render_template('register.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+            return render_template('register.html', panel_name=get_setting('site_name', 'HVM PANEL'))
         
         password_hash = generate_password_hash(password)
         api_key = generate_api_key()
@@ -3844,11 +3124,11 @@ def register():
             conn.commit()
         
         log_activity(user_id, 'register', 'auth', None, {'username': username, 'email': email})
-        create_notification(user_id, 'success', 'Welcome!', f'Welcome to {get_setting("site_name", "PVM PANEL")}! Your account has been created.')
+        create_notification(user_id, 'success', 'Welcome!', f'Welcome to {get_setting("site_name", "HVM PANEL")}! Your account has been created.')
         flash('Registration successful! Please log in.', 'success')
         return redirect(url_for('login'))
     
-    return render_template('register.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+    return render_template('register.html', panel_name=get_setting('site_name', 'HVM PANEL'))
 
 # ============================================================================
 # Discord OAuth Authentication
@@ -4138,8 +3418,8 @@ def discord_auto_register(discord_id, discord_username, discord_email, discord_a
             login_user(user, remember=True)
             
             log_activity(user.id, 'register_discord', 'auth', str(user.id))
-            create_notification(user.id, 'success', 'Welcome!', f'Welcome to {get_setting("site_name", "PVM Panel")}, {username}! Your account has been created.')
-            flash(f'Welcome to {get_setting("site_name", "PVM Panel")}, {username}! Your account has been created.', 'success')
+            create_notification(user.id, 'success', 'Welcome!', f'Welcome to {get_setting("site_name", "HVM Panel")}, {username}! Your account has been created.')
+            flash(f'Welcome to {get_setting("site_name", "HVM Panel")}, {username}! Your account has been created.', 'success')
             return redirect(url_for('dashboard'))
             
     except Exception as e:
@@ -4305,7 +3585,7 @@ def forgot_password():
         flash('If the email exists, a reset link has been sent.', 'info')
         return redirect(url_for('login'))
     
-    return render_template('forgot_password.html', panel_name=get_setting('site_name', 'PVM PANEL'))
+    return render_template('forgot_password.html', panel_name=get_setting('site_name', 'HVM PANEL'))
 
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
@@ -4320,7 +3600,7 @@ def reset_password(token):
         flash('Password reset successful. Please log in.', 'success')
         return redirect(url_for('login'))
     
-    return render_template('reset_password.html', token=token, panel_name=get_setting('site_name', 'PVM PANEL'))
+    return render_template('reset_password.html', token=token, panel_name=get_setting('site_name', 'HVM PANEL'))
 
 # ============================================================================
 # Notifications Routes
@@ -4353,7 +3633,7 @@ def notifications():
         total = cur.fetchone()[0]
     
     return render_template('notifications.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           notifications=notifications,
                           page=page,
                           total_pages=(total + per_page - 1) // per_page)
@@ -4404,7 +3684,7 @@ def os_icons():
         icons = [dict(row) for row in cur.fetchall()]
     
     return render_template('admin/os_icons.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           icons=icons,
                           os_options=OS_OPTIONS)
 
@@ -4582,7 +3862,7 @@ def profile():
     notifications = get_user_notifications(current_user.id, limit=10)
     
     return render_template('profile.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           activities=activities,
                           notifications=notifications)
 
@@ -4694,53 +3974,6 @@ def allowed_file(filename):
 # ============================================================================
 # Web Routes - Main Dashboard
 # ============================================================================
-@app.route('/api/dashboard/stats')
-@login_required
-async def api_dashboard_stats():
-    """API endpoint for live dashboard updates"""
-    vps_list = get_vps_for_user(current_user.id)
-    
-    # Refresh statuses in parallel for live data
-    async def refresh_vps(vps):
-        if is_vps_suspended(vps):
-            vps['live_status'] = 'suspended'
-            vps['live_cpu'] = 0
-            vps['live_ram'] = {'pct': 0}
-        else:
-            try:
-                stats = await get_container_stats(vps['container_name'], vps['node_id'])
-                vps['live_status'] = stats['status']
-                vps['live_cpu'] = stats['cpu']
-                vps['live_ram'] = stats['ram']
-            except:
-                vps['live_status'] = vps['status']
-                vps['live_cpu'] = 0
-                vps['live_ram'] = {'pct': 0}
-        return vps
-
-    # Limit parallel refreshes to avoid overloading nodes
-    tasks = [refresh_vps(vps) for vps in vps_list[:10]] # Limit to 10 for dashboard preview
-    refreshed_vps_list = await asyncio.gather(*tasks)
-    
-    running_count = sum(1 for v in refreshed_vps_list if v.get('live_status') == 'running' and not is_vps_suspended(v))
-    stopped_count = sum(1 for v in refreshed_vps_list if v.get('live_status') == 'stopped' and not is_vps_suspended(v))
-    suspended_count = sum(1 for v in refreshed_vps_list if is_vps_suspended(v))
-    
-    total_cpu = sum(int(v['cpu']) for v in refreshed_vps_list)
-    total_ram_gb = sum(parse_size_to_gb(v['ram']) for v in refreshed_vps_list)
-    total_disk_gb = sum(parse_size_to_gb(v['storage']) for v in refreshed_vps_list)
-    
-    return jsonify({
-        'status': 'success',
-        'vps_count': len(vps_list),
-        'running_count': running_count,
-        'stopped_count': stopped_count,
-        'suspended_count': suspended_count,
-        'total_cpu': total_cpu,
-        'total_ram': round(total_ram_gb, 1),
-        'total_disk': round(total_disk_gb, 1)
-    })
-
 @app.route('/dashboard')
 @login_required
 def dashboard():
@@ -4752,26 +3985,26 @@ def dashboard():
     
     vps_list = get_vps_for_user(current_user.id)
     
-    # For dashboard overview, we only get live status for the first few to keep it snappy
-    # Detailed stats will be fetched by the live API endpoint
-    for vps in vps_list[:5]:
+    for vps in vps_list:
+        # Check if VPS is suspended first
         if is_vps_suspended(vps):
             vps['live_status'] = 'suspended'
+            vps['live_cpu'] = 0
+            vps['live_ram'] = {'pct': 0}
         else:
             try:
-                # Use a very short timeout for the initial dashboard load
-                status = run_sync(get_container_status(vps['container_name'], vps['node_id']))
-                vps['live_status'] = status
+                stats = run_sync(get_container_stats(vps['container_name'], vps['node_id']))
+                vps['live_status'] = stats['status']
+                vps['live_cpu'] = stats['cpu']
+                vps['live_ram'] = stats['ram']
             except:
                 vps['live_status'] = vps['status']
-    
-    # Fill remaining with saved status
-    for vps in vps_list[5:]:
-        vps['live_status'] = vps['status']
+                vps['live_cpu'] = 0
+                vps['live_ram'] = {'pct': 0}
     
     total_cpu = sum(int(vps['cpu']) for vps in vps_list)
-    total_ram = sum(parse_size_to_gb(vps['ram']) for vps in vps_list)
-    total_disk = sum(parse_size_to_gb(vps['storage']) for vps in vps_list)
+    total_ram = sum(int(vps['ram'].replace('GB', '')) for vps in vps_list)
+    total_disk = sum(int(vps['storage'].replace('GB', '')) for vps in vps_list)
     
     running_count = sum(1 for vps in vps_list if vps.get('live_status') == 'running' and not is_vps_suspended(vps))
     suspended_count = sum(1 for vps in vps_list if is_vps_suspended(vps))
@@ -4779,8 +4012,7 @@ def dashboard():
     
     notifications = get_user_notifications(current_user.id, unread_only=True, limit=5)
     
-    # Create notification for high RAM usage (only for those we checked)
-    for vps in vps_list[:5]:
+    for vps in vps_list:
         if vps.get('live_status') == 'running' and vps.get('live_ram', {}).get('pct', 0) > 90:
             create_notification(
                 current_user.id, 
@@ -4803,7 +4035,7 @@ def dashboard():
         })
     
     return render_template('dashboard.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           site_description=get_setting('site_description', ''),
                           header_icon=get_setting('header_icon', '/static/img/logo.png'),
                           vps_list=vps_list,
@@ -4834,8 +4066,6 @@ def vps_list():
         # Check if VPS is suspended first
         if is_vps_suspended(vps):
             vps['live_status'] = 'suspended'
-        elif vps.get('status') in ('creating', 'error'):
-            pass  # skip live stats for not-ready containers
         else:
             try:
                 stats = run_sync(
@@ -4845,15 +4075,24 @@ def vps_list():
                     )
                 )
 
-                live = stats.get('status', 'unknown')
-                vps['live_status'] = live if live != 'not_found' else vps.get('status', 'unknown')
+                vps['live_status'] = stats.get('status', 'unknown')
                 vps['live_cpu'] = float(stats.get('cpu', 0.0))
                 
+                # Ensure RAM is a dict
                 ram_data = stats.get('ram', {'used': 0, 'total': 0, 'pct': 0.0})
-                vps['live_ram'] = ram_data if isinstance(ram_data, dict) else {'used': 0, 'total': 0, 'pct': 0.0}
+                if isinstance(ram_data, dict):
+                    vps['live_ram'] = ram_data
+                else:
+                    vps['live_ram'] = {'used': 0, 'total': 0, 'pct': 0.0}
                 
+                # Ensure disk is a dict
                 disk_data = stats.get('disk', {'use_percent': '0%'})
-                vps['live_disk'] = disk_data if isinstance(disk_data, dict) else {'use_percent': '0%'}
+                if isinstance(disk_data, dict):
+                    vps['live_disk'] = disk_data
+                else:
+                    vps['live_disk'] = {'use_percent': '0%'}
+                
+                logger.debug(f"VPS {vps['id']} stats: status={vps['live_status']}, cpu={vps['live_cpu']}, ram={vps['live_ram']}")
 
             except Exception as e:
                 logger.warning(f"Stats error for {vps.get('container_name')}: {e}")
@@ -4861,7 +4100,7 @@ def vps_list():
 
     return render_template(
         'vps_list.html',
-        panel_name=get_setting('site_name', 'PVM PANEL'),
+        panel_name=get_setting('site_name', 'HVM PANEL'),
         vps_list=vps_list,
         socketio_available=SOCKETIO_AVAILABLE
     )
@@ -4892,46 +4131,39 @@ def vps_detail(vps_id):
 
     node = get_node(vps['node_id'])
 
-    # Get container stats with better error handling
-    stats = {
-        "status": "unknown",
-        "cpu": 0.0,
-        "ram": {"used": 0, "total": 0, "pct": 0.0},
-        "disk": {"use_percent": "0%"},
-        "uptime": "Unknown"
-    }
-    
     try:
-        if node:
-            logger.info(f"Fetching stats for container {vps['container_name']} on node {vps['node_id']}")
-            stats_data = run_sync(
-                get_container_stats(
-                    vps['container_name'],
-                    vps['node_id']
-                )
+        logger.info(f"Fetching stats for container {vps['container_name']} on node {vps['node_id']}")
+        stats = run_sync(
+            get_container_stats(
+                vps['container_name'],
+                vps['node_id']
             )
-            if stats_data:
-                stats = stats_data
-                logger.info(f"Stats fetched for {vps['container_name']}: CPU={stats.get('cpu', 'N/A')}, Status={stats.get('status', 'N/A')}")
-        else:
-            logger.warning(f"VPS {vps_id} assigned to non-existent node {vps['node_id']}")
-    except Exception as e:
-        logger.error(f"Stats error for {vps['container_name']}: {e}", exc_info=True)
+        ) or {}
+        
+        logger.info(f"Stats fetched for {vps['container_name']}: CPU={stats.get('cpu', 'N/A')}, Status={stats.get('status', 'N/A')}")
 
-    live_status = stats.get("status", "unknown")
+    except Exception as e:
+        logger.error(
+            f"Stats error for {vps['container_name']}: {e}", exc_info=True
+        )
+        stats = {
+            "status": "unknown",
+            "cpu": 0.0,
+            "ram": {"used": 0, "total": 0, "pct": 0.0},
+            "disk": {"use_percent": "0%"},
+            "uptime": "Unknown"
+        }
+
+    live_status = stats.get("status")
 
     # If VPS is suspended (admin viewing), show suspended status
     if is_vps_suspended(vps):
         live_status = 'suspended'
         vps['status'] = 'suspended'
-    elif live_status == 'running':
-        # Only sync running→DB, never overwrite running with stopped from a single poll
-        if vps.get('status') != 'running':
-            update_vps(vps_id, status='running', last_started=datetime.now().isoformat())
-            vps['status'] = 'running'
-    elif live_status == 'not_found':
-        # Container not in LXC yet — keep DB status as-is
-        live_status = vps.get('status', 'unknown')
+    elif live_status in ("running", "stopped"):
+        if live_status != vps.get("status"):
+            update_vps(vps_id, status=live_status)
+            vps["status"] = live_status
 
     # Get private IP from inside the container
     private_ip = "N/A"
@@ -5011,17 +4243,14 @@ def vps_detail(vps_id):
     display_ip = get_vps_display_ip(vps) or YOUR_SERVER_IP
 
     os_icon = "default"
-    # Get OS icon with safety check
-    os_icon = "default"
-    vps_os = vps.get("os_version", "")
     for os_option in OS_OPTIONS:
-        if os_option.get("value") == vps_os:
+        if os_option["value"] == vps["os_version"]:
             os_icon = os_option.get("icon", "default")
             break
 
     return render_template(
         "vps_detail.html",
-        panel_name=get_setting('site_name', 'PVM PANEL'),
+        panel_name=get_setting('site_name', 'HVM PANEL'),
         vps=vps,
         node=node,
         stats=stats,
@@ -5172,7 +4401,7 @@ def vps_files(vps_id):
     status = run_sync(get_container_status(vps['container_name'], vps['node_id']))
     
     return render_template('vps_files.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           vps=vps,
                           status=status)
 
@@ -5530,44 +4759,15 @@ def vps_control(vps_id, action):
     if is_vps_suspended(vps) and not current_user.is_admin:
         return jsonify({'success': False, 'error': 'VPS is suspended'}), 403
     
-    actions = ['start', 'stop', 'restart', 'freeze', 'unfreeze', 'reinstall'] # Added reinstall
+    actions = ['start', 'stop', 'restart', 'freeze', 'unfreeze']
     if action not in actions:
         return jsonify({'success': False, 'error': 'Invalid action'}), 400
     
     try:
-        if action == 'reinstall':
-            os_version = request.form.get('os_version')
-            if not os_version:
-                return jsonify({'success': False, 'error': 'OS version required for reinstall'}), 400
-            
-            # Reinstall logic (simplified)
-            run_sync(execute_lxc(vps['container_name'], f"stop {vps['container_name']} --force", node_id=vps['node_id']))
-            # In a real app, you'd delete and recreate or use a reinstall API on node
-            # For now, let's assume we trigger a reinstall command
-            run_sync(execute_lxc(vps['container_name'], f"delete {vps['container_name']} --force", node_id=vps['node_id']))
-            # Trigger create logic again... (complex to inline here, usually handled by a separate background task)
-            
-            log_activity(current_user.id, 'reinstall_vps', 'vps', str(vps_id), {'os': os_version})
-            return jsonify({'success': True, 'message': 'VPS reinstallation initiated'})
-
         if action == 'start':
-            # Check if container is still being created
-            current_status = run_sync(get_container_status(vps['container_name'], vps['node_id']))
-            if current_status == 'not_found':
-                return jsonify({'success': False, 'error': 'Container not yet provisioned. Please wait for creation to complete.'}), 400
-
             run_sync(execute_lxc(vps['container_name'], f"start {vps['container_name']}", node_id=vps['node_id']))
             run_sync(apply_internal_permissions(vps['container_name'], vps['node_id']))
             run_sync(recreate_port_forwards(vps['container_name']))
-            
-            # Apply firewall rules on start
-            def _apply_fw():
-                try:
-                    with app.app_context():
-                        api_firewall_sync_internal(vps_id)
-                except: pass
-            threading.Thread(target=_apply_fw, daemon=True).start()
-            
             update_vps(vps_id, status='running', last_started=datetime.now().isoformat())
             log_activity(current_user.id, 'start_vps', 'vps', str(vps_id))
             create_notification(current_user.id, 'success', 'VPS Started', f'VPS {vps["container_name"]} has been started.')
@@ -5644,7 +4844,7 @@ def vps_console(vps_id):
     if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
         flash('Access denied', 'danger')
         return redirect(url_for('vps_list'))
-    
+
     # Check if VPS is suspended
     if is_vps_suspended(vps) and not current_user.is_admin:
         flash('VPS is suspended. Console access denied.', 'danger')
@@ -5652,14 +4852,98 @@ def vps_console(vps_id):
 
     # Get VPS IP address
     vps_ip = vps.get('ip_address', '')
-    
+
     return render_template(
         'console.html',
-        panel_name=get_setting('site_name', 'PVM PANEL'),
+        panel_name=get_setting('site_name', 'HVM PANEL'),
         vps=vps,
         vps_ip=vps_ip,
         ssh_available=SSH_AVAILABLE
     )
+
+
+@app.route('/vps/<int:vps_id>/rdp')
+@login_required
+def vps_rdp_console(vps_id):
+    """RDP console page - browser-based RDP via Apache Guacamole or noVNC-style viewer"""
+    vps = get_vps_by_id(vps_id)
+    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
+        flash('Access denied', 'danger')
+        return redirect(url_for('vps_list'))
+
+    if is_vps_suspended(vps) and not current_user.is_admin:
+        flash('VPS is suspended. RDP access denied.', 'danger')
+        return redirect(url_for('vps_suspended_page', vps_id=vps_id))
+
+    vps_ip = vps.get('ip_address', '')
+    return render_template(
+        'rdp_console.html',
+        panel_name=get_setting('site_name', 'HVM PANEL'),
+        vps=vps,
+        vps_ip=vps_ip,
+    )
+
+
+@app.route('/vps/<int:vps_id>/sshx')
+@login_required
+def vps_sshx(vps_id):
+    """SSHx — shared/collaborative SSH session via sshx.io tunnel"""
+    vps = get_vps_by_id(vps_id)
+    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
+        flash('Access denied', 'danger')
+        return redirect(url_for('vps_list'))
+
+    if is_vps_suspended(vps) and not current_user.is_admin:
+        flash('VPS is suspended.', 'danger')
+        return redirect(url_for('vps_suspended_page', vps_id=vps_id))
+
+    vps_ip = vps.get('ip_address', '')
+    return render_template(
+        'sshx_console.html',
+        panel_name=get_setting('site_name', 'HVM PANEL'),
+        vps=vps,
+        vps_ip=vps_ip,
+        ssh_available=SSH_AVAILABLE,
+    )
+
+
+@app.route('/vps/<int:vps_id>/sshx/install', methods=['POST'])
+@login_required
+def vps_sshx_install(vps_id):
+    """Install sshx on the VPS and return the share URL"""
+    vps = get_vps_by_id(vps_id)
+    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+
+    if is_vps_suspended(vps) and not current_user.is_admin:
+        return jsonify({'success': False, 'error': 'VPS is suspended'}), 403
+
+    container_name = vps['container_name']
+    node_id = vps.get('node_id')
+
+    try:
+        install_cmd = (
+            "curl -sSf https://sshx.io/get | sh -s -- -q && "
+            "nohup sshx > /tmp/sshx.log 2>&1 & "
+            "sleep 3 && grep -o 'https://sshx.io/s/[^ ]*' /tmp/sshx.log | head -1"
+        )
+        result = run_sync(execute_lxc(container_name,
+            f"exec {container_name} -- sh -c '{install_cmd}'",
+            node_id=node_id))
+
+        # Extract sshx URL from output
+        import re as _re
+        match = _re.search(r'https://sshx\.io/s/\S+', result or '')
+        if match:
+            share_url = match.group(0)
+            logger.info(f"SSHx started for {container_name}: {share_url}")
+            return jsonify({'success': True, 'url': share_url})
+        else:
+            logger.warning(f"SSHx install output: {result}")
+            return jsonify({'success': False, 'error': 'sshx started but could not extract share URL. Check /tmp/sshx.log on the VPS.'})
+    except Exception as e:
+        logger.error(f"SSHx install failed for {container_name}: {e}")
+        return jsonify({'success': False, 'error': str(e)})
 
 # SocketIO events for SSH console
 if socketio and SSH_AVAILABLE:
@@ -5726,20 +5010,14 @@ if socketio and SSH_AVAILABLE:
                     port=port,
                     username=username,
                     password=password,
-                    timeout=15,
+                    timeout=10,
                     allow_agent=False,
-                    look_for_keys=False,
-                    banner_timeout=15
+                    look_for_keys=False
                 )
-                
-                # Enable keepalive
-                transport = ssh_client.get_transport()
-                if transport:
-                    transport.set_keepalive(30)
                 
                 # Open interactive shell channel
                 channel = ssh_client.invoke_shell(term='xterm', width=80, height=24)
-                channel.settimeout(0.5)
+                channel.settimeout(0.1)
                 
                 logger.info(f"SSH connected for VPS {vps_id}")
 
@@ -5756,33 +5034,23 @@ if socketio and SSH_AVAILABLE:
                 def reader():
                     try:
                         logger.info(f"SSH reader thread started for VPS {vps_id}")
-                        consecutive_timeouts = 0
                         while True:
                             # Check if channel is still open
-                            if not channel or channel.closed:
+                            if channel.closed:
                                 logger.info(f"SSH channel closed for VPS {vps_id}")
                                 break
 
                             # Read output from channel
                             try:
                                 if channel.recv_ready():
-                                    output = channel.recv(8192)
+                                    output = channel.recv(4096)
                                     if not output:
-                                        # End of file/stream
                                         break
                                     # Send to client
                                     socketio.emit('ssh_output', output.decode('utf-8', errors='replace'), room=sid)
-                                    consecutive_timeouts = 0
                                 else:
-                                    time.sleep(0.02)
+                                    time.sleep(0.01)
                             except socket.timeout:
-                                consecutive_timeouts += 1
-                                # If we have too many timeouts without recv_ready, check if channel is still alive
-                                if consecutive_timeouts > 100: # ~2 seconds
-                                    if not transport.is_active():
-                                        logger.warning(f"SSH transport inactive for VPS {vps_id}")
-                                        break
-                                    consecutive_timeouts = 0
                                 continue
                             except Exception as e:
                                 logger.error(f"SSH read error for VPS {vps_id}: {e}")
@@ -5910,27 +5178,15 @@ def vps_ssh(vps_id):
                 return jsonify({'success': False, 'error': f'Could not install tmate: {str(e)}'}), 500
         
         run_sync(execute_lxc(container_name, f"exec {container_name} -- tmate -S /tmp/{session_name}.sock new-session -d", node_id=node_id))
-        # Wait for tmate to generate keys and connect
-        max_retries = 5
-        ssh_url = ""
-        web_url = ""
+        run_sync(asyncio.sleep(3))
         
-        for i in range(max_retries):
-            run_sync(asyncio.sleep(2))
-            
-            try:
-                ssh_output = run_sync(execute_lxc(container_name, f"exec {container_name} -- tmate -S /tmp/{session_name}.sock display -p '#{{tmate_ssh}}'", node_id=node_id))
-                ssh_url = ssh_output.strip()
-                
-                web_output = run_sync(execute_lxc(container_name, f"exec {container_name} -- tmate -S /tmp/{session_name}.sock display -p '#{{tmate_web}}'", node_id=node_id))
-                web_url = web_output.strip()
-                
-                if ssh_url and 'ssh' in ssh_url.lower():
-                    break
-            except:
-                continue
+        ssh_output = run_sync(execute_lxc(container_name, f"exec {container_name} -- tmate -S /tmp/{session_name}.sock display -p '#{{tmate_ssh}}'", node_id=node_id))
+        ssh_url = ssh_output.strip()
         
-        if ssh_url and 'ssh' in ssh_url.lower():
+        web_output = run_sync(execute_lxc(container_name, f"exec {container_name} -- tmate -S /tmp/{session_name}.sock display -p '#{{tmate_web}}'", node_id=node_id))
+        web_url = web_output.strip()
+        
+        if ssh_url:
             log_activity(current_user.id, 'generate_ssh', 'vps', str(vps_id))
             create_notification(current_user.id, 'info', 'SSH Session Created', f'SSH session created for {container_name}')
             return jsonify({
@@ -5940,8 +5196,7 @@ def vps_ssh(vps_id):
                 'session': session_name
             })
         else:
-            # Final attempt to check if it's just slow
-            return jsonify({'success': False, 'error': 'Could not generate SSH URL. tmate might be taking too long to connect to its servers. Please try again in a moment.'}), 500
+            return jsonify({'success': False, 'error': 'Could not generate SSH URL'}), 500
     except Exception as e:
         logger.error(f"SSH generation error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -5969,122 +5224,6 @@ def vps_stats(vps_id):
         return jsonify({'success': True, 'stats': stats})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/vps/<int:vps_id>/install-sshx', methods=['POST'])
-@login_required
-def vps_install_sshx(vps_id):
-    vps = get_vps_by_id(vps_id)
-    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-    if vps.get('status') != 'running':
-        return jsonify({'success': False, 'error': 'VPS must be running'}), 400
-    try:
-        install_cmd = "curl -sSf https://sshx.io/get | sh -s -- -q"
-        run_sync(execute_lxc(vps['container_name'],
-            f"exec {vps['container_name']} -- sh -c \"{install_cmd}\"",
-            node_id=vps['node_id'], timeout=120))
-        # Start sshx and capture URL
-        result = run_sync(execute_lxc(vps['container_name'],
-            f"exec {vps['container_name']} -- sh -c \"sshx &>/tmp/sshx.log & sleep 3 && grep -o 'https://sshx.io/s/[^ ]*' /tmp/sshx.log | head -1\"",
-            node_id=vps['node_id'], timeout=30))
-        url = result.strip() if isinstance(result, str) else ''
-        return jsonify({'success': True, 'url': url})
-    except Exception as e:
-        logger.error(f"sshx install error for VPS {vps_id}: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/vps/<int:vps_id>/password')
-@login_required
-def vps_get_password(vps_id):
-    vps = get_vps_by_id(vps_id)
-    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
-        return jsonify({'success': False, 'error': 'Access denied'}), 404
-    
-    try:
-        # Check root_password column first (new), then fall back to metadata
-        password = vps.get('root_password', '')
-        if not password:
-            metadata = json.loads(vps.get('metadata', '{}')) if isinstance(vps.get('metadata'), str) else vps.get('metadata', {})
-            password = metadata.get('root_password', '')
-        
-        if not password:
-            # Generate and store a new one
-            password = secrets.token_urlsafe(16)
-            update_vps(vps_id, root_password=password)
-        
-        return jsonify({'status': 'success', 'password': password})
-    except Exception as e:
-        logger.error(f"Error fetching password for VPS {vps_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to fetch password'}), 500
-
-@app.route('/vps/<int:vps_id>/password/refresh', methods=['POST'])
-@login_required
-def vps_refresh_password(vps_id):
-    vps = get_vps_by_id(vps_id)
-    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
-        return jsonify({'success': False, 'error': 'Access denied'}), 404
-    
-    try:
-        # Generate new password
-        new_password = secrets.token_urlsafe(16)
-        
-        # Store in metadata
-        metadata = json.loads(vps.get('metadata', '{}')) if isinstance(vps.get('metadata'), str) else vps.get('metadata', {})
-        metadata['root_password'] = new_password
-        update_vps(vps_id, metadata=json.dumps(metadata))
-        
-        # Try to set password on running container
-        if vps['status'] == 'running':
-            try:
-                run_sync(execute_lxc(
-                    vps['container_name'], 
-                    f'exec {vps["container_name"]} -- bash -c "echo root:{new_password} | chpasswd"',
-                    node_id=vps['node_id']
-                ))
-            except Exception as e:
-                logger.warning(f"Could not set password on running container {vps['container_name']}: {e}")
-        
-        return jsonify({'success': True, 'password': new_password})
-    except Exception as e:
-        logger.error(f"Error refreshing password for VPS {vps_id}: {e}")
-        return jsonify({'success': False, 'message': 'Failed to refresh password'}), 500
-
-@app.route('/vps/<int:vps_id>/change-password', methods=['POST'])
-@login_required
-def vps_change_password(vps_id):
-    vps = get_vps_by_id(vps_id)
-    if not vps or (vps['user_id'] != current_user.id and not current_user.is_admin):
-        return jsonify({'status': 'error', 'message': 'Access denied'}), 404
-    
-    try:
-        new_password = request.form.get('password')
-        if not new_password:
-            return jsonify({'status': 'error', 'message': 'No password provided'}), 400
-        
-        if len(new_password) < 8:
-            return jsonify({'status': 'error', 'message': 'Password must be at least 8 characters'}), 400
-        
-        # Store in metadata
-        metadata = json.loads(vps.get('metadata', '{}')) if isinstance(vps.get('metadata'), str) else vps.get('metadata', {})
-        metadata['root_password'] = new_password
-        update_vps(vps_id, metadata=json.dumps(metadata))
-        
-        # Try to set password on running container
-        if vps['status'] == 'running':
-            try:
-                run_sync(execute_lxc(
-                    vps['container_name'],
-                    f'exec {vps["container_name"]} -- bash -c "echo root:{new_password} | chpasswd"',
-                    node_id=vps['node_id']
-                ))
-            except Exception as e:
-                logger.warning(f"Could not set password on running container {vps['container_name']}: {e}")
-        
-        return jsonify({'status': 'success', 'message': 'Password changed successfully'})
-    except Exception as e:
-        logger.error(f"Error changing password for VPS {vps_id}: {e}")
-        return jsonify({'status': 'error', 'message': 'Failed to change password'}), 500
 
 @app.route('/vps/<int:vps_id>/reinstall', methods=['POST'])
 @login_required
@@ -6296,7 +5435,7 @@ def vps_suspended_page(vps_id):
     return render_template(
         "vps_suspended.html",
         vps=vps,
-        panel_name=get_setting('site_name', 'PVM PANEL')
+        panel_name=get_setting('site_name', 'HVM PANEL')
     )
 
 @app.route('/vps/<int:vps_id>/expiration')
@@ -6353,7 +5492,7 @@ def ports_list():
             forward['display_ip'] = YOUR_SERVER_IP
     
     return render_template('ports.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           allocated=allocated,
                           used=used,
                           available=allocated - used,
@@ -6498,7 +5637,7 @@ def admin_dashboard():
     host_stats = run_sync(get_host_stats(1))
     
     return render_template('admin/dashboard.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           total_users=total_users,
                           total_vps=total_vps,
                           running_vps=running_vps,
@@ -6552,7 +5691,7 @@ def admin_users():
         total_users = cur.fetchone()[0]
     
     return render_template('admin/users.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           users=users,
                           search_query=search_query,
                           page=page,
@@ -6589,7 +5728,7 @@ def admin_user_detail(user_id):
         activities = [dict(row) for row in cur.fetchall()]
     
     return render_template('admin/user_detail.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           user=user,
                           vps_list=vps_list,
                           allocated_ports=allocated_ports,
@@ -6604,7 +5743,7 @@ def admin_users_create():
     # GET - Render the create user form
     if request.method == 'GET':
         return render_template('admin/users_create.html',
-                              panel_name=get_setting('site_name', 'PVM PANEL'))
+                              panel_name=get_setting('site_name', 'HVM PANEL'))
     
     # POST - Process the form submission
     data = request.get_json() or request.form.to_dict()
@@ -6735,7 +5874,7 @@ def admin_user_edit(user_id):
         if request.method == 'GET':
             logger.info(f"Rendering edit form for user {user_id}")
             return render_template('admin/users_edit.html',
-                                  panel_name=get_setting('site_name', 'PVM PANEL'),
+                                  panel_name=get_setting('site_name', 'HVM PANEL'),
                                   user=user,
                                   port_allocation=port_allocation,
                                   vps_count=vps_count)
@@ -6942,9 +6081,6 @@ def admin_vps():
 
             if is_vps_suspended(vps):
                 vps['live_status'] = "suspended"
-            elif vps.get('status') in ('creating', 'error', 'not_found'):
-                # Skip live stats for containers not yet ready
-                pass
             else:
                 try:
                     stats = run_sync(
@@ -6955,16 +6091,22 @@ def admin_vps():
                     )
 
                     if stats:
-                        live = stats.get('status', 'unknown')
-                        # Don't show 'not_found' as live status — keep DB status
-                        vps['live_status'] = live if live != 'not_found' else vps.get('status', 'unknown')
+                        vps['live_status'] = stats.get('status', 'unknown')
                         vps['live_cpu'] = float(stats.get('cpu', 0.0))
                         
+                        # Ensure RAM is a dict
                         ram_data = stats.get('ram', {'used': 0, 'total': 0, 'pct': 0.0})
-                        vps['live_ram'] = ram_data if isinstance(ram_data, dict) else {'used': 0, 'total': 0, 'pct': 0.0}
+                        if isinstance(ram_data, dict):
+                            vps['live_ram'] = ram_data
+                        else:
+                            vps['live_ram'] = {'used': 0, 'total': 0, 'pct': 0.0}
                         
+                        # Ensure disk is a dict
                         disk_data = stats.get('disk', {'use_percent': '0%'})
-                        vps['live_disk'] = disk_data if isinstance(disk_data, dict) else {'use_percent': '0%'}
+                        if isinstance(disk_data, dict):
+                            vps['live_disk'] = disk_data
+                        else:
+                            vps['live_disk'] = {'use_percent': '0%'}
 
                 except Exception as e:
                     current_app.logger.warning(
@@ -6977,7 +6119,6 @@ def admin_vps():
             SELECT COUNT(*)
             FROM vps v
             JOIN users u ON v.user_id = u.id
-            JOIN nodes n ON v.node_id = n.id
         '''
 
         count_params = params[:-2]
@@ -6992,7 +6133,7 @@ def admin_vps():
 
     return render_template(
         'admin/vps.html',
-        panel_name=get_setting('site_name', 'PVM PANEL'),
+        panel_name=get_setting('site_name', 'HVM PANEL'),
         vps_list=vps_list,
         search_query=search_query,
         node_id=node_id,
@@ -7074,7 +6215,7 @@ def admin_vps_expiring():
         total_with_expiration = cur.fetchone()[0]
     
     return render_template('admin/vps_expiring.html',
-                         panel_name=get_setting('site_name', 'PVM PANEL'),
+                         panel_name=get_setting('site_name', 'HVM PANEL'),
                          expired_count=expired_count,
                          expiring_soon_count=expiring_soon_count,
                          total_with_expiration=total_with_expiration,
@@ -7319,384 +6460,6 @@ def admin_vps_renew(vps_id):
         logger.error(f"Error renewing VPS {vps_id}: {e}", exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/vps/<int:vps_id>/metrics', methods=['GET'])
-@login_required
-def vps_metrics(vps_id):
-    """Get historical metrics for a VPS"""
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'VPS not found'}), 404
-        
-    if vps['user_id'] != current_user.id and not current_user.is_admin:
-        # Check if shared
-        shared_with = json.loads(vps.get('shared_with', '[]'))
-        if current_user.username not in shared_with:
-            return jsonify({'success': False, 'error': 'Access denied'}), 403
-            
-    hours = int(request.args.get('hours', 24))
-    if hours > 168: hours = 168 # Max 1 week
-    
-    since = (datetime.now() - timedelta(hours=hours)).isoformat()
-    
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('''SELECT cpu_usage, ram_usage_bytes, network_in_bytes, network_out_bytes, timestamp 
-                      FROM vps_metrics WHERE vps_id = ? AND timestamp > ? 
-                      ORDER BY timestamp ASC''', (vps_id, since))
-        metrics = [dict(row) for row in cur.fetchall()]
-        
-    return jsonify({
-        'success': True,
-        'vps_id': vps_id,
-        'hours': hours,
-        'metrics': metrics
-    })
-
-@app.route('/scripts', methods=['GET'])
-@login_required
-def list_scripts():
-    """List available custom scripts"""
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('''SELECT * FROM custom_scripts 
-                      WHERE is_public = 1 OR user_id = ? 
-                      ORDER BY created_at DESC''', (current_user.id,))
-        scripts = [dict(row) for row in cur.fetchall()]
-        for script in scripts:
-            script['is_public'] = bool(script['is_public'])
-    return jsonify({'success': True, 'scripts': scripts})
-
-@app.route('/vps/<int:vps_id>/execute-script/<int:script_id>', methods=['POST'])
-@login_required
-def execute_script(vps_id, script_id):
-    """Execute a custom script on a VPS"""
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'VPS not found'}), 404
-        
-    if vps['user_id'] != current_user.id and not current_user.is_admin:
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-        
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT content FROM custom_scripts WHERE id = ?', (script_id,))
-        script = cur.fetchone()
-        
-    if not script:
-        return jsonify({'success': False, 'error': 'Script not found'}), 404
-        
-    # In a real implementation, this would use execute_lxc
-    # For now, we'll return success as if it's queued
-    return jsonify({'success': True, 'message': 'Script execution queued'})
-
-@app.route('/vps/<int:vps_id>/snapshots', methods=['GET'])
-@login_required
-@vps_owner_or_admin_required
-def vps_snapshots(vps_id):
-    """List snapshots for a VPS"""
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM snapshots WHERE vps_id = ? ORDER BY created_at DESC', (vps_id,))
-        snapshots = [dict(row) for row in cur.fetchall()]
-    return jsonify({'success': True, 'snapshots': snapshots})
-
-@app.route('/vps/<int:vps_id>/snapshots/create', methods=['POST'])
-@login_required
-@vps_owner_or_admin_required
-def vps_create_snapshot(vps_id):
-    """Create a new snapshot for a VPS"""
-    data = request.get_json() or {}
-    name = data.get('name', f"Snapshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-    description = data.get('description', '')
-    
-    vps = get_vps_by_id(vps_id)
-    
-    # In a real implementation, this would call LXC snapshot command
-    # For now, we'll record it in DB
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('''INSERT INTO snapshots (vps_id, name, description, created_at)
-                      VALUES (?, ?, ?, ?)''', (vps_id, name, description, datetime.now().isoformat()))
-        conn.commit()
-        
-    log_activity(current_user.id, 'create_snapshot', 'vps', str(vps_id), {'name': name})
-    return jsonify({'success': True, 'message': 'Snapshot creation initiated'})
-
-@app.route('/vps/<int:vps_id>/snapshots/<int:snapshot_id>/restore', methods=['POST'])
-@login_required
-@vps_owner_or_admin_required
-def vps_restore_snapshot(vps_id, snapshot_id):
-    """Restore a VPS from a snapshot"""
-    # In a real implementation, this would call LXC restore command
-    log_activity(current_user.id, 'restore_snapshot', 'vps', str(vps_id), {'snapshot_id': snapshot_id})
-    return jsonify({'success': True, 'message': 'Snapshot restoration initiated'})
-
-@app.route('/admin/nodes/health', methods=['GET'])
-@login_required
-@admin_required
-def admin_nodes_health():
-    """Perform health checks on all nodes and return detailed report"""
-    nodes = get_nodes()
-    report = []
-    
-    for node in nodes:
-        start_time = time.time()
-        status = run_sync(get_node_status(node['id']))
-        latency = (time.time() - start_time) * 1000 # ms
-        
-        node_data = {
-            'id': node['id'],
-            'name': node['name'],
-            'status': status['status'],
-            'online': status.get('online', False),
-            'latency_ms': round(latency, 2),
-            'vps_count': get_current_vps_count(node['id']),
-            'load_avg': status.get('stats', {}).get('load_avg', [0, 0, 0]),
-            'error': status.get('error')
-        }
-        report.append(node_data)
-        
-    return jsonify({'success': True, 'nodes': report})
-
-@app.route('/vps/<int:vps_id>/clone', methods=['POST'])
-@login_required
-@vps_owner_or_admin_required
-@rate_limit(limit=5, period=300) # Max 5 clones per 5 mins
-def vps_clone(vps_id):
-    """Clone an existing VPS to a new container"""
-    data = request.get_json() or {}
-    new_name = data.get('name')
-    if not new_name:
-        return jsonify({'success': False, 'error': 'New VPS name is required'}), 400
-        
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'Source VPS not found'}), 404
-        
-    # Check VPS limits
-    user_vps_count = get_user_vps_count(current_user.id)
-    vps_limit = int(get_user_setting(current_user.id, 'vps_limit', get_setting('default_vps_limit', '2')))
-    if user_vps_count >= vps_limit and not current_user.is_admin:
-        return jsonify({'success': False, 'error': f'VPS limit reached ({vps_limit}).'}), 403
-
-    new_container_name = f"vps-{secrets.token_hex(4)}"
-    
-    # In a real implementation, this would call LXC clone command via node agent
-    # run_sync(execute_lxc(vps['container_name'], f"copy {vps['container_name']} {new_container_name}", node_id=vps['node_id']))
-    
-    now = datetime.now().isoformat()
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('''INSERT INTO vps 
-            (user_id, name, container_name, node_id, os, cpu, ram, disk, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-            (current_user.id, new_name, new_container_name, vps['node_id'], vps['os'], 
-             vps['cpu'], vps['ram'], vps['disk'], 'stopped', now))
-        new_id = cur.lastrowid
-        conn.commit()
-        
-    log_activity(current_user.id, 'clone_vps', 'vps', str(new_id), {'source_vps_id': vps_id})
-    trigger_webhook('vps_created', {'id': new_id, 'name': new_name, 'cloned_from': vps_id})
-    
-    return jsonify({'success': True, 'message': 'VPS cloning initiated', 'vps_id': new_id})
-
-@app.route('/vps/<int:vps_id>/firewall', methods=['GET'])
-@login_required
-@vps_owner_or_admin_required
-def vps_firewall_list(vps_id):
-    """List firewall rules for a VPS"""
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'VPS not found'}), 404
-        
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM firewall_rules WHERE vps_id = ? ORDER BY created_at DESC', (vps_id,))
-        rules = [dict(row) for row in cur.fetchall()]
-    
-    # Also get status from node
-    node = get_node(vps['node_id'])
-    firewall_status = "unknown"
-    if node:
-        try:
-            import requests
-            url = f"{node['url']}/api/container/firewall"
-            headers = {"X-API-Key": node["api_key"]}
-            res = requests.post(url, json={'container': vps['container_name'], 'action': 'status'}, headers=headers, timeout=10)
-            if res.status_code == 200:
-                firewall_status = res.json().get('status', 'unknown')
-        except:
-            pass
-            
-    return jsonify({'success': True, 'rules': rules, 'firewall_status': firewall_status})
-
-@app.route('/vps/<int:vps_id>/firewall/action', methods=['POST'])
-@login_required
-@vps_owner_or_admin_required
-def vps_firewall_action(vps_id):
-    """Enable/Disable firewall on VPS"""
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'VPS not found'}), 404
-        
-    data = request.get_json() or {}
-    action = data.get('action') # enable, disable
-    
-    if action not in ['enable', 'disable']:
-        return jsonify({'success': False, 'error': 'Invalid action'}), 400
-        
-    node = get_node(vps['node_id'])
-    if not node:
-        return jsonify({'success': False, 'error': 'Node not found'}), 500
-        
-    try:
-        import requests
-        url = f"{node['url']}/api/container/firewall"
-        headers = {"X-API-Key": node["api_key"]}
-        res = requests.post(url, json={'container': vps['container_name'], 'action': action}, headers=headers, timeout=60)
-        if res.status_code == 200:
-            log_activity(current_user.id, f'{action}_firewall', 'vps', str(vps_id))
-            return jsonify({'success': True, 'message': f'Firewall {action}d successfully'})
-        else:
-            return jsonify({'success': False, 'error': res.json().get('error', 'Node error')}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/vps/<int:vps_id>/firewall/add', methods=['POST'])
-@login_required
-@vps_owner_or_admin_required
-def vps_firewall_add(vps_id):
-    """Add a new firewall rule to a VPS"""
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'VPS not found'}), 404
-        
-    data = request.get_json() or {}
-    direction = data.get('direction', 'in')
-    protocol = data.get('protocol', 'tcp')
-    port_range = data.get('port_range')
-    action = data.get('action', 'allow')
-    source_ip = data.get('source_ip', '0.0.0.0/0')
-    
-    if not port_range:
-        return jsonify({'success': False, 'error': 'Port range is required'}), 400
-        
-    # Sync with node first
-    node = get_node(vps['node_id'])
-    if not node:
-        return jsonify({'success': False, 'error': 'Node not found'}), 500
-        
-    try:
-        import requests
-        url = f"{node['url']}/api/container/firewall"
-        headers = {"X-API-Key": node["api_key"]}
-        rule_data = {
-            'direction': direction,
-            'protocol': protocol,
-            'port_range': port_range,
-            'action': action,
-            'source_ip': source_ip
-        }
-        res = requests.post(url, json={'container': vps['container_name'], 'action': 'add_rule', 'rule': rule_data}, headers=headers, timeout=20)
-        
-        if res.status_code == 200:
-            with get_db() as conn:
-                cur = conn.cursor()
-                cur.execute('''INSERT INTO firewall_rules 
-                    (vps_id, direction, protocol, port_range, action, source_ip, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                    (vps_id, direction, protocol, port_range, action, source_ip, datetime.now().isoformat()))
-                conn.commit()
-                
-            log_activity(current_user.id, 'add_firewall_rule', 'vps', str(vps_id), data)
-            return jsonify({'success': True, 'message': 'Firewall rule added successfully'})
-        else:
-            return jsonify({'success': False, 'error': res.json().get('error', 'Node error')}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/vps/<int:vps_id>/firewall/delete/<int:rule_id>', methods=['POST', 'DELETE'])
-@login_required
-@vps_owner_or_admin_required
-def vps_firewall_delete(vps_id, rule_id):
-    """Delete a firewall rule from a VPS"""
-    vps = get_vps_by_id(vps_id)
-    if not vps:
-        return jsonify({'success': False, 'error': 'VPS not found'}), 404
-        
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM firewall_rules WHERE id = ? AND vps_id = ?', (rule_id, vps_id))
-        rule = cur.fetchone()
-        
-    if not rule:
-        return jsonify({'success': False, 'error': 'Rule not found'}), 404
-        
-    rule = dict(rule)
-    node = get_node(vps['node_id'])
-    if not node:
-        return jsonify({'success': False, 'error': 'Node not found'}), 500
-        
-    try:
-        import requests
-        url = f"{node['url']}/api/container/firewall"
-        headers = {"X-API-Key": node["api_key"]}
-        res = requests.post(url, json={'container': vps['container_name'], 'action': 'delete_rule', 'rule': rule}, headers=headers, timeout=20)
-        
-        if res.status_code == 200:
-            with get_db() as conn:
-                cur = conn.cursor()
-                cur.execute('DELETE FROM firewall_rules WHERE id = ?', (rule_id,))
-                conn.commit()
-            log_activity(current_user.id, 'delete_firewall_rule', 'vps', str(vps_id), {'rule_id': rule_id})
-            return jsonify({'success': True, 'message': 'Firewall rule deleted successfully'})
-        else:
-            return jsonify({'success': False, 'error': res.json().get('error', 'Node error')}), 500
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/admin/webhooks', methods=['GET', 'POST'])
-@login_required
-@admin_required
-def admin_webhooks():
-    """Manage system webhooks"""
-    if request.method == 'POST':
-        data = request.get_json() or {}
-        url = data.get('url')
-        secret = data.get('secret')
-        events = data.get('events', 'all')
-        
-        if not url:
-            return jsonify({'success': False, 'error': 'Webhook URL is required'}), 400
-            
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute('INSERT INTO webhooks (url, secret, events, created_at) VALUES (?, ?, ?, ?)',
-                       (url, secret, events, datetime.now().isoformat()))
-            conn.commit()
-        return jsonify({'success': True, 'message': 'Webhook added successfully'})
-        
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('SELECT * FROM webhooks ORDER BY created_at DESC')
-        webhooks = [dict(row) for row in cur.fetchall()]
-    return render_template('admin/webhooks.html', webhooks=webhooks)
-
-@app.route('/admin/activity', methods=['GET'])
-@login_required
-@admin_required
-def admin_activity_stream():
-    """Global activity stream for admins"""
-    limit = int(request.args.get('limit', 50))
-    with get_db() as conn:
-        cur = conn.cursor()
-        cur.execute('''SELECT al.*, u.username 
-                      FROM activity_logs al
-                      LEFT JOIN users u ON al.user_id = u.id
-                      ORDER BY al.created_at DESC LIMIT ?''', (limit,))
-        logs = [dict(row) for row in cur.fetchall()]
-    return render_template('admin/activity.html', logs=logs)
-
 @app.route('/admin/vps/<int:vps_id>/expiration', methods=['GET', 'POST'])
 @login_required
 @admin_required
@@ -7744,7 +6507,7 @@ def admin_vps_expiration(vps_id):
         
         # Render HTML page
         return render_template('admin/vps_expiration.html',
-                              panel_name=get_setting('site_name', 'PVM PANEL'),
+                              panel_name=get_setting('site_name', 'HVM PANEL'),
                               vps=vps,
                               user=user,
                               expires_info=expires_info)
@@ -7857,7 +6620,7 @@ def admin_vps_edit(vps_id):
             users=users,
             nodes=nodes,
             os_options=OS_OPTIONS,
-            panel_name=get_setting('site_name', 'PVM PANEL')
+            panel_name=get_setting('site_name', 'HVM PANEL')
         )
 
     data = request.form
@@ -8037,37 +6800,33 @@ def admin_vps_create():
         nodes = get_nodes()
         
         return render_template('admin/vps_create.html',
-                              panel_name=get_setting('site_name', 'PVM PANEL'),
+                              panel_name=get_setting('site_name', 'HVM PANEL'),
                               users=users,
                               nodes=nodes,
                               os_options=OS_OPTIONS)
     
-    data = request.get_json(silent=True) or request.form.to_dict()
-    if not data:
-        return jsonify({'success': False, 'error': 'No data received'}), 400
-    try:
-        user_id = int(data.get('user_id'))
-        node_id = int(data.get('node_id'))
-    except (TypeError, ValueError):
-        return jsonify({'success': False, 'error': 'Invalid user_id or node_id'}), 400
+    data = request.get_json()
+    user_id = data.get('user_id')
+    node_id = data.get('node_id')
     ram = int(data.get('ram', 2))
     cpu = int(data.get('cpu', 2))
     disk = int(data.get('disk', 20))
     os_version = data.get('os_version', 'ubuntu:22.04')
     hostname = data.get('hostname')
-    ip_address_type = data.get('ip_address_type', 'shared')
-    ip_address = (data.get('dedicated_ip') or data.get('ip_address') or '').strip() or None
-    bandwidth_limit = int(data.get('bandwidth_limit', 0) or 0)
+    ip_address = data.get('ip_address', '').strip() if data.get('ip_address') else None
+    ip_alias = data.get('ip_alias', '').strip() if data.get('ip_alias') else None
     expiration_days = int(data.get('expiration_days', 0))
     auto_suspend_enabled = bool(data.get('auto_suspend_enabled', False))
-
-    # Validate dedicated IP if manually provided
-    if ip_address_type == 'dedicated' and ip_address:
+    
+    # Validate IP address format if provided
+    if ip_address:
         try:
-            import ipaddress as _ipmod
-            _ipmod.ip_address(ip_address)
-        except ValueError:
-            return jsonify({'success': False, 'error': f'Invalid IP address: {ip_address}'}), 400
+            import ipaddress
+            ipaddress.ip_address(ip_address)
+            logger.info(f"Valid IP address provided: {ip_address}")
+        except ValueError as e:
+            logger.error(f"Invalid IP address format: {ip_address}")
+            return jsonify({'success': False, 'error': f'Invalid IP address format: {ip_address}'}), 400
     
     if not all([user_id, node_id]):
         return jsonify({'success': False, 'error': 'Missing parameters'}), 400
@@ -8098,9 +6857,25 @@ def admin_vps_create():
         
         ram_mb = ram * 1024
         
+        run_sync(execute_lxc(container_name, f"init {os_version} {container_name} -s {DEFAULT_STORAGE_POOL}", node_id=node_id))
+        run_sync(execute_lxc(container_name, f"config set {container_name} limits.memory {ram_mb}MB", node_id=node_id))
+        run_sync(execute_lxc(container_name, f"config set {container_name} limits.cpu {cpu}", node_id=node_id))
+        run_sync(execute_lxc(container_name, f"config device set {container_name} root size={disk}GB", node_id=node_id))
+        
+        
+        run_sync(apply_lxc_config(container_name, node_id))
+        run_sync(execute_lxc(container_name, f"start {container_name}", node_id=node_id))
+        
+        # Configure IP after container is started
+        if ip_address:
+            run_sync(configure_container_ip(container_name, ip_address, node_id))
+        
+        run_sync(apply_internal_permissions(container_name, node_id))
+        
+        # Configure SSH and set root password
+        run_sync(configure_ssh_and_root_password(container_name, node_id))
+        
         config_str = f"{ram}GB RAM / {cpu} CPU / {disk}GB Disk"
-        if bandwidth_limit:
-            config_str += f" / {bandwidth_limit}Mbps BW"
         vps_id = create_vps(
             user_id=user_id,
             node_id=node_id,
@@ -8111,9 +6886,8 @@ def admin_vps_create():
             storage=f"{disk}GB",
             config=config_str,
             os_version=os_version,
-            ip_address_type=ip_address_type,
             ip_address=ip_address,
-            bandwidth_limit=bandwidth_limit,
+            ip_alias=ip_alias,
             expiration_days=expiration_days,
             auto_suspend_enabled=auto_suspend_enabled
         )
@@ -8123,7 +6897,7 @@ def admin_vps_create():
         create_notification(user_id, 'success', 'VPS Created', f'Your VPS {container_name} has been created by an administrator.')
         return jsonify({'success': True, 'vps_id': vps_id, 'container_name': container_name})
     except Exception as e:
-        logger.error(f"VPS creation error: {e}", exc_info=True)
+        logger.error(f"VPS creation error: {e}")
         try:
             run_sync(execute_lxc(container_name, f"delete {container_name} --force", node_id=node_id))
         except:
@@ -8165,7 +6939,7 @@ def admin_nodes():
         })
     
     return render_template('admin/nodes.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           nodes=node_stats,
                           socketio_available=SOCKETIO_AVAILABLE)
 
@@ -8277,7 +7051,7 @@ def admin_node_create():
     # GET - Render create form
     if request.method == 'GET':
         return render_template('admin/nodes_create.html',
-                              panel_name=get_setting('site_name', 'PVM PANEL'))
+                              panel_name=get_setting('site_name', 'HVM PANEL'))
     
     # POST - Process form submission
     data = request.get_json() or request.form.to_dict()
@@ -8390,7 +7164,7 @@ def admin_node_edit(node_id):
             ip_aliases_str = ''
         
         return render_template('admin/node_edit.html',
-                              panel_name=get_setting('site_name', 'PVM PANEL'),
+                              panel_name=get_setting('site_name', 'HVM PANEL'),
                               node=node,
                               vps_count=vps_count,
                               tags_str=tags_str,
@@ -8510,19 +7284,17 @@ def admin_settings():
     if request.method == 'POST':
         data = request.form
 
-        settings_keys = [
+        settings = [
             'site_name', 'site_description', 'header_icon', 'favicon',
             'footer_text', 'maintenance_message',
             'cpu_threshold', 'ram_threshold',
             'default_port_quota', 'max_vps_per_user', 'session_timeout',
             'backup_retention', 'theme', 'language', 'timezone',
-            'discord_client_id', 'discord_client_secret', 'discord_redirect_uri', 'discord_button_text',
-            'video_background_enabled', 'video_background_url'
+            'discord_client_id', 'discord_client_secret', 'discord_redirect_uri', 'discord_button_text'
         ]
 
-        for key in settings_keys:
-            if key in data:
-                set_setting(key, data.get(key, ''))
+        for key in settings:
+            set_setting(key, data.get(key, ''))
 
         set_setting('maintenance_mode',
                     '1' if 'maintenance_mode' in data else '0')
@@ -8538,9 +7310,6 @@ def admin_settings():
         
         set_setting('discord_auto_register',
                     '1' if 'discord_auto_register' in data else '0')
-        
-        set_setting('video_background_enabled',
-                    '1' if 'video_background_enabled' in data else '0')
 
         log_activity(current_user.id, 'update_settings', 'settings')
         create_notification(
@@ -8561,8 +7330,7 @@ def admin_settings():
         'default_port_quota', 'max_vps_per_user', 'session_timeout',
         'backup_enabled', 'backup_retention', 'theme', 'language', 'timezone',
         'discord_auth_enabled', 'discord_client_id', 'discord_client_secret',
-        'discord_redirect_uri', 'discord_auto_register', 'discord_button_text',
-        'video_background_enabled', 'video_background_url'
+        'discord_redirect_uri', 'discord_auto_register', 'discord_button_text'
     ]
 
     for key in keys:
@@ -8570,7 +7338,7 @@ def admin_settings():
 
     return render_template(
         'admin/settings.html',
-        panel_name=get_setting('site_name', 'PVM PANEL'),
+        panel_name=get_setting('site_name', 'HVM PANEL'),
         settings=settings
     )
 
@@ -8638,7 +7406,7 @@ def upload_favicon():
 @admin_required
 def admin_maintenance():
     return render_template('admin/maintenance.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'))
+                          panel_name=get_setting('site_name', 'HVM PANEL'))
 
 @app.route('/admin/backup', methods=['POST'])
 @login_required
@@ -8683,7 +7451,7 @@ def admin_backup_list():
     backups.sort(key=lambda x: x['modified'], reverse=True)
     
     return render_template('admin/backup_list.html',
-                          panel_name=get_setting('site_name', 'PVM PANEL'),
+                          panel_name=get_setting('site_name', 'HVM PANEL'),
                           backups=backups)
 
 @app.route('/admin/backup/restore/<filename>', methods=['POST'])
@@ -8807,7 +7575,7 @@ def admin_system_info():
     system_info = get_system_info_dict()
     
     return render_template('admin/system_info.html',
-                         panel_name=get_setting('site_name', 'PVM PANEL'),
+                         panel_name=get_setting('site_name', 'HVM PANEL'),
                          system_info=system_info,
                          psutil_available=PSUTIL_AVAILABLE)
 
@@ -9084,11 +7852,11 @@ def get_system_info_dict():
             'PORT': PORT,
             'MAIN_ADMIN_USERNAME': os.getenv('MAIN_ADMIN_USERNAME', 'admin'),
             'MAIN_ADMIN_EMAIL': os.getenv('MAIN_ADMIN_EMAIL', 'admin@localhost'),
-            'YOUR_SERVER_IP': globals().get('YOUR_SERVER_IP', 'Unknown'),
-            'DEFAULT_STORAGE_POOL': globals().get('DEFAULT_STORAGE_POOL', 'Unknown'),
-            'DEBUG_MODE': str(app.debug),
-            'AUTO_BACKUP_INTERVAL': globals().get('AUTO_BACKUP_INTERVAL', '3600'),
-            'STATS_UPDATE_INTERVAL': globals().get('STATS_UPDATE_INTERVAL', '5'),
+            'YOUR_SERVER_IP': YOUR_SERVER_IP,
+            'DEFAULT_STORAGE_POOL': DEFAULT_STORAGE_POOL,
+            'DEBUG_MODE': os.getenv('DEBUG_MODE', 'False'),
+            'AUTO_BACKUP_INTERVAL': os.getenv('AUTO_BACKUP_INTERVAL', '3600'),
+            'STATS_UPDATE_INTERVAL': os.getenv('STATS_UPDATE_INTERVAL', '5'),
             'PYTHON_VERSION': platform.python_version(),
             'PYTHONPATH': os.getenv('PYTHONPATH', 'Not set'),
             'PATH': os.getenv('PATH', 'Not set')[:200] + '...' if os.getenv('PATH') and len(os.getenv('PATH', '')) > 200 else os.getenv('PATH', 'Not set'),
@@ -9134,54 +7902,20 @@ def admin_logs():
     lines = int(request.args.get('lines', 100))
     download = request.args.get('download', 'false') == 'true'
     
-    if platform.system() == 'Windows':
-        log_files = {
-            'hvm': LOG_FILE,
-            'panel': LOG_FILE,
-            'node-agent': os.path.join(BASE_DIR, 'node-agent.log'),
-            'windows-system': 'SYSTEM',
-            'windows-application': 'APPLICATION'
-        }
-    else:
-        log_files = {
-            'hvm': LOG_FILE,
-            'lxc': '/var/log/lxc/lxc.log',
-            'system': '/var/log/syslog',
-            'auth': '/var/log/auth.log',
-            'kern': '/var/log/kern.log',
-            'panel': LOG_FILE
-        }
+    log_files = {
+        'hvm': 'hvm.log',
+        'lxc': '/var/log/lxc/lxc.log',
+        'system': '/var/log/syslog',
+        'auth': '/var/log/auth.log',
+        'kern': '/var/log/kern.log',
+        'panel': 'hvm.log'
+    }
     
-    log_file = log_files.get(log_type, LOG_FILE)
+    log_file = log_files.get(log_type, 'hvm.log')
     
     # If it's an AJAX request for log content
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or download:
         try:
-            # Special handling for Windows Event Logs
-            if platform.system() == 'Windows' and log_file in ['SYSTEM', 'APPLICATION']:
-                try:
-                    cmd = f"powershell -NoProfile -Command \"Get-EventLog -LogName {log_file} -Newest {lines} | Format-List | Out-String\""
-                    log_content = subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode(errors='ignore')
-                    
-                    if download:
-                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                        filename = f"{log_type}_logs_{timestamp}.log"
-                        response = make_response(log_content)
-                        response.headers['Content-Type'] = 'text/plain'
-                        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
-                        return response
-                    
-                    return jsonify({
-                        'success': True, 
-                        'logs': log_content,
-                        'file': f'Windows {log_file} Event Log',
-                        'size': len(log_content),
-                        'lines_total': lines,
-                        'lines_shown': lines
-                    })
-                except Exception as e:
-                    return jsonify({'success': False, 'error': f'Failed to fetch Windows Event Log: {e}'})
-
             if os.path.exists(log_file):
                 with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
                     all_lines = f.readlines()
@@ -9189,6 +7923,7 @@ def admin_logs():
                     log_content = ''.join(last_lines)
                     
                     if download:
+                        from datetime import datetime
                         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                         filename = f"{log_type}_logs_{timestamp}.log"
                         response = make_response(log_content)
@@ -9214,15 +7949,7 @@ def admin_logs():
     # Get available log files with their info
     available_logs = []
     for name, path in log_files.items():
-        if platform.system() == 'Windows' and path in ['SYSTEM', 'APPLICATION']:
-            available_logs.append({
-                'name': name,
-                'path': path,
-                'size': 0,
-                'size_mb': 0,
-                'modified': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            })
-        elif os.path.exists(path):
+        if os.path.exists(path):
             try:
                 stat = os.stat(path)
                 available_logs.append({
@@ -9236,7 +7963,7 @@ def admin_logs():
                 pass
     
     return render_template('admin/logs.html',
-                         panel_name=get_setting('site_name', 'PVM PANEL'),
+                         panel_name=get_setting('site_name', 'HVM PANEL'),
                          available_logs=available_logs,
                          current_log=log_type)
 
@@ -9266,8 +7993,6 @@ def admin_api():
                           ORDER BY ak.created_at DESC''', (current_user.id,))
         
         api_keys = [dict(row) for row in cur.fetchall()]
-        for key in api_keys:
-            key['is_active'] = bool(key['is_active'])
         
         # Get users for dropdown (admin only)
         users = []
@@ -9276,7 +8001,7 @@ def admin_api():
             users = [dict(row) for row in cur.fetchall()]
     
     return render_template('admin/api.html',
-                         panel_name=get_setting('site_name', 'PVM PANEL'),
+                         panel_name=get_setting('site_name', 'HVM PANEL'),
                          api_keys=api_keys,
                          users=users)
 
@@ -9519,34 +8244,18 @@ def admin_node_check(node_id):
             vps_count = 0
         
         # Get storage pools
-        pools = None
         try:
-            if node['is_local'] and platform.system() != 'Linux':
-                pools = []
-            else:
-                pools_output = run_sync(execute_lxc("", "storage list --format json", node_id=node_id, timeout=10))
-                if pools_output and isinstance(pools_output, str):
-                    try:
-                        pools = json.loads(pools_output)
-                    except:
-                        pools = pools_output
+            pools = run_sync(execute_lxc("", "storage list", node_id=node_id, timeout=10))
         except Exception as e:
             logger.debug(f"Failed to get storage pools for node {node_id}: {e}")
+            pools = None
         
         # Get networks
-        networks = None
         try:
-            if node['is_local'] and platform.system() != 'Linux':
-                networks = []
-            else:
-                networks_output = run_sync(execute_lxc("", "network list --format json", node_id=node_id, timeout=10))
-                if networks_output and isinstance(networks_output, str):
-                    try:
-                        networks = json.loads(networks_output)
-                    except:
-                        networks = networks_output
+            networks = run_sync(execute_lxc("", "network list", node_id=node_id, timeout=10))
         except Exception as e:
             logger.debug(f"Failed to get networks for node {node_id}: {e}")
+            networks = None
         
         return jsonify({
             'success': True,
@@ -9593,50 +8302,30 @@ def admin_node_view(node_id):
         if node['is_local']:
             # Local node - get detailed info directly
             try:
-                if platform.system() == 'Windows':
-                    # CPU info for Windows
-                    cpu_info = subprocess.run(['wmic', 'cpu', 'get', 'name,NumberOfCores,NumberOfLogicalProcessors,MaxClockSpeed'], capture_output=True, text=True, timeout=5)
-                    system_info['cpu_details'] = cpu_info.stdout if cpu_info.returncode == 0 else "N/A"
-                    
-                    # Memory info for Windows
-                    mem_info = subprocess.run(['wmic', 'OS', 'get', 'FreePhysicalMemory,TotalVisibleMemorySize,SizeStoredInPagingFiles'], capture_output=True, text=True, timeout=5)
-                    system_info['memory_details'] = mem_info.stdout if mem_info.returncode == 0 else "N/A"
-                    
-                    # OS info for Windows
-                    os_info = subprocess.run(['wmic', 'os', 'get', 'Caption,Version,BuildNumber,OSArchitecture'], capture_output=True, text=True, timeout=5)
-                    system_info['os_details'] = os_info.stdout if os_info.returncode == 0 else "N/A"
-                    
-                    # Kernel info (Version)
-                    system_info['kernel'] = platform.version()
-                    
-                    # Disk info for Windows
-                    disk_info = subprocess.run(['wmic', 'logicaldisk', 'get', 'name,Size,FreeSpace,FileSystem'], capture_output=True, text=True, timeout=5)
-                    system_info['disk_details'] = disk_info.stdout if disk_info.returncode == 0 else "N/A"
-                else:
-                    # CPU info for Linux
-                    cpu_info_cmd = "lscpu | grep -E 'Model name|CPU\\(s\\)|Thread|Core|Socket|MHz'"
-                    cpu_info = subprocess.run(cpu_info_cmd, shell=True, capture_output=True, text=True, timeout=5)
-                    system_info['cpu_details'] = cpu_info.stdout if cpu_info.returncode == 0 else "N/A"
-                    
-                    # Memory info for Linux
-                    mem_info_cmd = "free -h | grep -E 'Mem|Swap'"
-                    mem_info = subprocess.run(mem_info_cmd, shell=True, capture_output=True, text=True, timeout=5)
-                    system_info['memory_details'] = mem_info.stdout if mem_info.returncode == 0 else "N/A"
-                    
-                    # OS info for Linux
-                    os_info_cmd = "cat /etc/os-release | grep -E 'PRETTY_NAME|VERSION'"
-                    os_info = subprocess.run(os_info_cmd, shell=True, capture_output=True, text=True, timeout=5)
-                    system_info['os_details'] = os_info.stdout if os_info.returncode == 0 else "N/A"
-                    
-                    # Kernel info for Linux
-                    kernel_cmd = "uname -r"
-                    kernel_info = subprocess.run(kernel_cmd, shell=True, capture_output=True, text=True, timeout=5)
-                    system_info['kernel'] = kernel_info.stdout.strip() if kernel_info.returncode == 0 else "N/A"
-                    
-                    # Disk info for Linux
-                    disk_cmd = "df -h | grep -E '^/dev/'"
-                    disk_info = subprocess.run(disk_cmd, shell=True, capture_output=True, text=True, timeout=5)
-                    system_info['disk_details'] = disk_info.stdout if disk_info.returncode == 0 else "N/A"
+                # CPU info
+                cpu_info_cmd = "lscpu | grep -E 'Model name|CPU\\(s\\)|Thread|Core|Socket|MHz'"
+                cpu_info = subprocess.run(cpu_info_cmd, shell=True, capture_output=True, text=True, timeout=5)
+                system_info['cpu_details'] = cpu_info.stdout if cpu_info.returncode == 0 else "N/A"
+                
+                # Memory info
+                mem_info_cmd = "free -h | grep -E 'Mem|Swap'"
+                mem_info = subprocess.run(mem_info_cmd, shell=True, capture_output=True, text=True, timeout=5)
+                system_info['memory_details'] = mem_info.stdout if mem_info.returncode == 0 else "N/A"
+                
+                # OS info
+                os_info_cmd = "cat /etc/os-release | grep -E 'PRETTY_NAME|VERSION'"
+                os_info = subprocess.run(os_info_cmd, shell=True, capture_output=True, text=True, timeout=5)
+                system_info['os_details'] = os_info.stdout if os_info.returncode == 0 else "N/A"
+                
+                # Kernel info
+                kernel_cmd = "uname -r"
+                kernel_info = subprocess.run(kernel_cmd, shell=True, capture_output=True, text=True, timeout=5)
+                system_info['kernel'] = kernel_info.stdout.strip() if kernel_info.returncode == 0 else "N/A"
+                
+                # Disk info
+                disk_cmd = "df -h | grep -E '^/dev/'"
+                disk_info = subprocess.run(disk_cmd, shell=True, capture_output=True, text=True, timeout=5)
+                system_info['disk_details'] = disk_info.stdout if disk_info.returncode == 0 else "N/A"
                 
             except Exception as e:
                 logger.error(f"Error getting local system info: {e}")
@@ -9695,7 +8384,7 @@ def admin_node_view(node_id):
             vps_list = [dict(row) for row in cur.fetchall()]
         
         return render_template('admin/node_view.html',
-                             panel_name=get_setting('site_name', 'PVM PANEL'),
+                             panel_name=get_setting('site_name', 'HVM PANEL'),
                              node=node,
                              status=status,
                              stats=stats,
@@ -9902,48 +8591,6 @@ def unshare_vps(vps_id):
         logger.error(f"Error unsharing VPS {vps_id}: {e}", exc_info=True)
         return jsonify({'success': False, 'error': f'Failed to remove access: {str(e)}'}), 500
 
-@app.route('/vps/<int:vps_id>/files', methods=['POST'])
-@login_required
-@vps_owner_or_admin_required
-def vps_file_manager(vps_id):
-    """Proxy for container file manager"""
-    try:
-        vps = get_vps_by_id(vps_id)
-        if not vps:
-            return jsonify({'success': False, 'error': 'VPS not found'}), 404
-
-        node = get_node(vps['node_id'])
-        if not node:
-            return jsonify({'success': False, 'error': 'Node not found for this VPS'}), 500
-
-        data = request.get_json()
-        action = data.get('action')
-        path = data.get('path', '/')
-        content = data.get('content')
-
-        if not action:
-            return jsonify({'success': False, 'error': 'Action is required'}), 400
-
-        # Forward request to the node agent
-        import requests
-        url = f"{node['url']}/api/container/files"
-        headers = {"X-API-Key": node["api_key"]}
-        payload = {
-            'container': vps['container_name'],
-            'action': action,
-            'path': path,
-            'content': content
-        }
-        
-        verify_ssl = bool(node.get('verify_ssl', 1))
-        response = requests.post(url, json=payload, headers=headers, timeout=60, verify=verify_ssl)
-        
-        return response.content, response.status_code, response.headers.items()
-
-    except Exception as e:
-        logger.error(f"File manager proxy error for VPS {vps_id}: {e}", exc_info=True)
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 # ============================================================================
 # API Routes
 # ============================================================================
@@ -10070,103 +8717,89 @@ def resource_monitor():
     backup_interval = AUTO_BACKUP_INTERVAL
     last_backup = time.time()
     last_stats_update = time.time()
-    last_resource_check = time.time()
-    last_expiry_check = time.time()
-    last_watchdog = time.time()
     stats_cache = {}
     
     while resource_monitor_active:
         try:
             current_time = time.time()
             
-            # Node stats update every 60s
             if current_time - last_stats_update >= 60:
                 nodes = get_nodes()
                 for node in nodes:
                     try:
                         stats = run_sync(get_host_stats(node['id']))
                         stats_cache[node['id']] = stats
+                        
                         cpu = stats.get('cpu', 0)
                         ram = stats.get('ram', {}).get('percent', 0)
                         logger.info(f"Node {node['name']}: CPU {cpu:.1f}%, RAM {ram:.1f}%")
+                        
                         cpu_threshold = int(get_setting('cpu_threshold', 90))
                         ram_threshold = int(get_setting('ram_threshold', 90))
+                        
                         if cpu > cpu_threshold or ram > ram_threshold:
                             logger.warning(f"Node {node['name']} exceeded thresholds (CPU: {cpu:.1f}%, RAM: {ram:.1f}%).")
+                            
                             if socketio:
                                 socketio.emit('node_alert', {
-                                    'node_id': node['id'], 'node_name': node['name'],
-                                    'cpu': cpu, 'ram': ram
+                                    'node_id': node['id'],
+                                    'node_name': node['name'],
+                                    'cpu': cpu,
+                                    'ram': ram
                                 }, room='admins')
+                                
                     except Exception as e:
                         logger.error(f"Error monitoring node {node.get('name', 'Unknown')}: {e}")
+                
                 last_stats_update = current_time
-
-            # VPS watchdog — restart any VPS that should be running but aren't (every 5 min)
-            if current_time - last_watchdog >= 300:
+            
+            if int(current_time) % 300 == 0:
                 try:
                     vps_list = get_all_vps()
                     for vps in vps_list:
-                        if is_vps_suspended(vps) or is_vps_whitelisted(vps):
+                        if is_vps_whitelisted(vps) or is_vps_suspended(vps):
                             continue
-                        if vps.get('status') == 'running':
+                            
+                        if vps['status'] == 'running':
                             try:
-                                lxc_status = run_sync(get_container_status(vps['container_name'], vps['node_id']))
-                                if lxc_status == 'stopped':
-                                    # Container stopped unexpectedly — restart it
-                                    logger.warning(f"Watchdog: {vps['container_name']} should be running but is stopped. Restarting...")
-                                    run_sync(execute_lxc(vps['container_name'], f"start {vps['container_name']}", node_id=vps['node_id']))
-                                    run_sync(recreate_port_forwards(vps['container_name']))
-                                    logger.info(f"Watchdog restarted {vps['container_name']}")
-                                    create_notification(vps['user_id'], 'info', 'VPS Auto-Restarted',
-                                        f'Your VPS {vps["container_name"]} was automatically restarted by the watchdog.')
-                                elif lxc_status == 'not_found':
-                                    # Container doesn't exist in LXC — mark as error
-                                    update_vps(vps['id'], status='error')
-                                    logger.warning(f"Watchdog: {vps['container_name']} not found in LXC, marked as error")
-                                # If running or unknown — leave DB status alone
+                                stats = run_sync(get_container_stats(vps['container_name'], vps['node_id']))
+                                cpu = stats.get('cpu', 0)
+                                ram = stats.get('ram', {}).get('pct', 0)
+                                
+                                cpu_threshold = int(get_setting('cpu_threshold', 90))
+                                ram_threshold = int(get_setting('ram_threshold', 90))
+                                
+                                if cpu > cpu_threshold or ram > ram_threshold:
+                                    reason = f"Auto-suspended: High resource usage (CPU {cpu:.1f}%, RAM {ram:.1f}%)"
+                                    run_sync(execute_lxc(vps['container_name'], f"stop {vps['container_name']} --force", node_id=vps['node_id']))
+                                    
+                                    history = vps['suspension_history']
+                                    history.append({
+                                        'time': datetime.now().isoformat(),
+                                        'reason': reason,
+                                        'by': 'Auto Monitor'
+                                    })
+                                    
+                                    update_vps(vps['id'], suspended=1, status='stopped', 
+                                              suspension_history=history, suspended_reason=reason)
+                                    logger.info(f"Auto-suspended {vps['container_name']}: {reason}")
+                                    log_activity(None, 'auto_suspend', 'vps', str(vps['id']), {'reason': reason})
+                                    create_notification(vps['user_id'], 'warning', 'VPS Auto-Suspended', 
+                                                      f'Your VPS {vps["container_name"]} has been suspended due to high resource usage.')
+                                    
+                                    if socketio:
+                                        socketio.emit('vps_suspended', {
+                                            'vps_id': vps['id'],
+                                            'reason': reason
+                                        }, room=f'vps_{vps["id"]}')
+                                        
                             except Exception as e:
-                                logger.error(f"Watchdog error for {vps['container_name']}: {e}")
-                except Exception as e:
-                    logger.error(f"Watchdog check error: {e}")
-                last_watchdog = current_time
-
-            # Auto-suspend high-usage VPS (only if setting enabled, every 5 min)
-            if current_time - last_resource_check >= 300:
-                try:
-                    auto_suspend_enabled = get_setting('auto_suspend_high_usage', '0') == '1'
-                    if auto_suspend_enabled:
-                        vps_list = get_all_vps()
-                        cpu_threshold = int(get_setting('cpu_threshold', 95))
-                        ram_threshold = int(get_setting('ram_threshold', 95))
-                        for vps in vps_list:
-                            if is_vps_whitelisted(vps) or is_vps_suspended(vps):
-                                continue
-                            if vps['status'] == 'running':
-                                try:
-                                    stats = run_sync(get_container_stats(vps['container_name'], vps['node_id']))
-                                    cpu = stats.get('cpu', 0)
-                                    ram = stats.get('ram', {}).get('pct', 0)
-                                    if cpu > cpu_threshold or ram > ram_threshold:
-                                        reason = f"Auto-suspended: High resource usage (CPU {cpu:.1f}%, RAM {ram:.1f}%)"
-                                        run_sync(execute_lxc(vps['container_name'], f"stop {vps['container_name']} --force", node_id=vps['node_id']))
-                                        history = vps.get('suspension_history', [])
-                                        history.append({'time': datetime.now().isoformat(), 'reason': reason, 'by': 'Auto Monitor'})
-                                        update_vps(vps['id'], suspended=1, status='stopped',
-                                                  suspension_history=history, suspended_reason=reason)
-                                        logger.warning(f"Auto-suspended {vps['container_name']}: {reason}")
-                                        create_notification(vps['user_id'], 'warning', 'VPS Auto-Suspended',
-                                            f'Your VPS {vps["container_name"]} was suspended due to high resource usage.')
-                                        if socketio:
-                                            socketio.emit('vps_suspended', {'vps_id': vps['id'], 'reason': reason}, room=f'vps_{vps["id"]}')
-                                except Exception as e:
-                                    logger.error(f"Auto resource check error for {vps['container_name']}: {e}")
+                                logger.error(f"Auto resource check error for {vps['container_name']}: {e}")
                 except Exception as e:
                     logger.error(f"Auto resource check error: {e}")
-                last_resource_check = current_time
-
-            # Check for expired VPS every 10 minutes
-            if current_time - last_expiry_check >= 600:
+            
+            # Check for expired VPS and auto-suspend them
+            if int(current_time) % 600 == 0:  # Check every 10 minutes
                 try:
                     with get_db() as conn:
                         cur = conn.cursor()
@@ -10250,7 +8883,6 @@ def resource_monitor():
                                 
                 except Exception as e:
                     logger.error(f"Auto expiration check error: {e}")
-                last_expiry_check = current_time
             
             if get_setting('backup_enabled', '1') == '1' and current_time - last_backup > backup_interval:
                 backup_name = f"hvm_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
@@ -10301,22 +8933,19 @@ def resource_monitor():
 def not_found_error(error):
     if request.is_json or request.headers.get('Content-Type') == 'application/json':
         return jsonify({'success': False, 'error': 'Not found'}), 404
-    return render_template('errors/404.html', panel_name=get_setting('site_name', 'PVM PANEL')), 404
+    return render_template('errors/404.html', panel_name=get_setting('site_name', 'HVM PANEL')), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    import traceback
-    tb = traceback.format_exc()
-    logger.error(f"Internal server error: {error}\n{tb}")
     if request.is_json or request.headers.get('Content-Type') == 'application/json':
         return jsonify({'success': False, 'error': 'Internal server error'}), 500
-    return render_template('errors/500.html', panel_name=get_setting('site_name', 'PVM PANEL'), error=tb), 500
+    return render_template('errors/500.html', panel_name=get_setting('site_name', 'HVM PANEL')), 500
 
 @app.errorhandler(403)
 def forbidden_error(error):
     if request.is_json or request.headers.get('Content-Type') == 'application/json':
         return jsonify({'success': False, 'error': 'Forbidden'}), 403
-    return render_template('errors/403.html', panel_name=get_setting('site_name', 'PVM PANEL')), 403
+    return render_template('errors/403.html', panel_name=get_setting('site_name', 'HVM PANEL')), 403
 
 @app.errorhandler(401)
 def unauthorized_error(error):
@@ -10450,92 +9079,13 @@ def truncate_filter(s, length=50):
 
     return s[:length] + "..."
 
-def run_scheduled_tasks():
-    """Background thread to run scheduled tasks"""
-    while True:
-        try:
-            now = datetime.now().isoformat()
-            with get_db() as conn:
-                cur = conn.cursor()
-                cur.execute('SELECT * FROM scheduled_tasks WHERE is_active = 1 AND next_run <= ?', (now,))
-                tasks = cur.fetchall()
-                
-                for task in tasks:
-                    logger.info(f"Running scheduled task {task['id']} ({task['task_type']}) for VPS {task['vps_id']}")
-                    
-                    # Handle task based on type
-                    if task['task_type'] == 'backup':
-                        # vps_backup(task['vps_id'])
-                        pass
-                    elif task['task_type'] == 'snapshot':
-                        # vps_create_snapshot(task['vps_id'])
-                        pass
-                    
-                    # Calculate next run
-                    # Simple daily schedule for now
-                    next_run = (datetime.now() + timedelta(days=1)).isoformat()
-                    cur.execute('UPDATE scheduled_tasks SET last_run = ?, next_run = ? WHERE id = ?',
-                               (now, next_run, task['id']))
-                conn.commit()
-        except Exception as e:
-            logger.error(f"Error in scheduled tasks: {e}")
-        
-        time.sleep(60) # Check every minute
-
 # ============================================================================
 # Main entry point
 # ============================================================================
-
-# Always initialize DB on module load (covers WSGI servers like gunicorn/waitress)
-try:
-    init_db()
-    migrate_discord_auth()
-    migrate_vps_columns()
-except Exception as _init_err:
-    logger.error(f"DB init error: {_init_err}")
-
-def reconcile_vps_status_on_startup():
-    """
-    On startup, check all VPS marked 'running' in DB against actual LXC state.
-    If LXC says stopped, restart them (they should be 24/7).
-    If LXC says not_found, mark as error.
-    Run in a background thread so it doesn't block startup.
-    """
-    def _reconcile():
-        import time as _time
-        _time.sleep(5)  # Wait for app to fully start
-        with app.app_context():
-            try:
-                vps_list = get_all_vps()
-                for vps in vps_list:
-                    if is_vps_suspended(vps):
-                        continue
-                    if vps.get('status') == 'running':
-                        try:
-                            lxc_status = run_sync(get_container_status(vps['container_name'], vps['node_id']))
-                            if lxc_status == 'stopped':
-                                logger.info(f"Startup reconcile: restarting {vps['container_name']} (was running, found stopped)")
-                                run_sync(execute_lxc(vps['container_name'], f"start {vps['container_name']}", node_id=vps['node_id']))
-                                run_sync(recreate_port_forwards(vps['container_name']))
-                                logger.info(f"Startup reconcile: {vps['container_name']} restarted")
-                            elif lxc_status == 'not_found':
-                                update_vps(vps['id'], status='error')
-                                logger.warning(f"Startup reconcile: {vps['container_name']} not found in LXC, marked error")
-                            # running or unknown — leave as-is
-                        except Exception as e:
-                            logger.error(f"Startup reconcile error for {vps['container_name']}: {e}")
-            except Exception as e:
-                logger.error(f"Startup reconcile failed: {e}")
-    threading.Thread(target=_reconcile, daemon=True).start()
-
 if __name__ == "__main__":
+    init_db()
+    migrate_discord_auth()  # Run Discord auth migration
     logger.info(f"{PANEL_NAME} v{PANEL_VERSION} starting...")
-    
-    # Reconcile VPS status on startup (restart any VPS that should be running)
-    reconcile_vps_status_on_startup()
-    
-    # Start background threads
-    threading.Thread(target=run_scheduled_tasks, daemon=True).start()
     
     os.makedirs('static/uploads/profiles', exist_ok=True)
     os.makedirs('static/uploads/settings', exist_ok=True)
@@ -10574,8 +9124,8 @@ if __name__ == "__main__":
             config = HyperConfig()
             config.bind = [f"{HOST}:{PORT}"]
             config.use_reloader = False
-            config.errorlog = logging.getLogger('pvm_panel')
-            config.accesslog = logging.getLogger('pvm_panel')
+            config.errorlog = logging.getLogger('hvm_panel')
+            config.accesslog = logging.getLogger('hvm_panel')
             config.workers = 4
             
             try:

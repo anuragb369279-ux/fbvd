@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-PVM Panel - Comprehensive REST API
-Full management API for PVM Panel
+HVM Panel - Comprehensive REST API
+Full management API for HVM Panel
 """
 
 from flask import Blueprint, request, jsonify
@@ -103,9 +103,9 @@ def api_info():
     return jsonify({
         'success': True,
         'api': {
-            'name': 'PVM Panel API',
+            'name': 'HVM Panel API',
             'version': 'v1',
-            'description': 'Comprehensive REST API for PVM Panel management',
+            'description': 'Comprehensive REST API for HVM Panel management',
             'documentation': '/api/v1/docs',
             'endpoints': {
                 'authentication': '/api/v1/auth/*',

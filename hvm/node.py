@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-PVM Panel - Node Agent
-Version: v1.0-PRO-ULTIMATE
-Developer: ShadowGamerIND
+HVM Panel - Node Agent
+Version: 2.0-PRO-ULTIMATE
+Developer: Hopingboz
 Description: Enhanced LXC Container Management Node Agent
 """
 
 import argparse
-import platform
 import json
 import os
 import re
@@ -36,15 +35,15 @@ BANNER = """
 ║   ██║  ██║ ╚████╔╝ ██║ ╚═╝ ██║    ██║ ╚████║╚██████╔╝██████╔╝███████╗   ║
 ║   ╚═╝  ╚═╝  ╚═══╝  ╚═╝     ╚═╝    ╚═╝  ╚═══╝ ╚═════╝ ╚═════╝ ╚══════╝   ║
 ║                                                                           ║
-║                    Node Agent - Version v1.0-PRO-ULTIMATE                ║
+║                    Node Agent - Version 2.0-PRO-ULTIMATE                 ║
 ║                    LXC Container Management Agent                        ║
 ║                                                                           ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 """
 
 # Version info
-VERSION = "v1.0-PRO-ULTIMATE"
-DEVELOPER = "ShadowGamerIND"
+VERSION = "2.0-PRO-ULTIMATE"
+DEVELOPER = "Hopingboz"
 
 # Print banner on startup
 print(BANNER)
@@ -86,17 +85,12 @@ def setup_logging(log_level: str = 'INFO', log_file: str = 'node-agent.log'):
     )
     
     # File handler
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
     
     # Console handler
     console_handler = logging.StreamHandler(sys.stdout)
-    if hasattr(sys.stdout, 'reconfigure'):
-        try:
-            sys.stdout.reconfigure(encoding='utf-8')
-        except Exception:
-            pass
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     
@@ -215,23 +209,6 @@ def execute_lxc(full_command: str, timeout: int = 120) -> Dict[str, Any]:
 def get_host_cpu_usage() -> float:
     """Get host CPU usage percentage with multiple fallback methods"""
     try:
-        # Method 0: Windows support using wmic
-        if platform.system() == 'Windows':
-            try:
-                result = subprocess.run(
-                    ['wmic', 'cpu', 'get', 'loadpercentage'],
-                    capture_output=True,
-                    text=True,
-                    timeout=5
-                )
-                if result.returncode == 0:
-                    lines = result.stdout.splitlines()
-                    for line in lines:
-                        if line.strip() and line.strip().isdigit():
-                            return float(line.strip())
-            except Exception as e:
-                logger.debug(f"Windows wmic CPU usage detection failed: {e}")
-
         # Method 1: Try mpstat (most accurate)
         if shutil.which("mpstat"):
             try:
@@ -296,49 +273,6 @@ def get_host_cpu_usage() -> float:
 def get_host_ram_usage() -> Dict[str, Any]:
     """Get host RAM usage with detailed info and multiple fallback methods"""
     try:
-        # Method 0: Windows support using wmic
-        if platform.system() == 'Windows':
-            try:
-                # Get total physical memory
-                result_total = subprocess.run(
-                    ['wmic', 'computersystem', 'get', 'totalphysicalmemory'],
-                    capture_output=True, text=True, timeout=5
-                )
-                # Get free physical memory
-                result_free = subprocess.run(
-                    ['wmic', 'os', 'get', 'freephysicalmemory'],
-                    capture_output=True, text=True, timeout=5
-                )
-                
-                if result_total.returncode == 0 and result_free.returncode == 0:
-                    total_bytes = 0
-                    for line in result_total.stdout.splitlines():
-                        if line.strip() and line.strip().isdigit():
-                            total_bytes = int(line.strip())
-                            break
-                    
-                    free_kb = 0
-                    for line in result_free.stdout.splitlines():
-                        if line.strip() and line.strip().isdigit():
-                            free_kb = int(line.strip())
-                            break
-                    
-                    if total_bytes > 0:
-                        total_mb = total_bytes // (1024 * 1024)
-                        free_mb = free_kb // 1024
-                        used_mb = total_mb - free_mb
-                        percent = round((used_mb / total_mb * 100), 2)
-                        
-                        return {
-                            'total': total_mb,
-                            'used': used_mb,
-                            'free': free_mb,
-                            'available': free_mb,
-                            'percent': percent
-                        }
-            except Exception as e:
-                logger.debug(f"Windows wmic RAM usage detection failed: {e}")
-
         # Method 1: Try free command
         if shutil.which("free"):
             result = subprocess.run(
@@ -403,47 +337,13 @@ def get_host_ram_usage() -> Dict[str, Any]:
 def get_host_disk_usage() -> Dict[str, Any]:
     """Get host disk usage with detailed info"""
     try:
-        if platform.system() == 'Windows':
-            try:
-                import ctypes
-                free_bytes = ctypes.c_ulonglong(0)
-                total_bytes = ctypes.c_ulonglong(0)
-                ctypes.windll.kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p("C:\\"), None, ctypes.byref(total_bytes), ctypes.byref(free_bytes))
-                total = total_bytes.value // (1024 * 1024 * 1024)
-                free = free_bytes.value // (1024 * 1024 * 1024)
-                used = total - free
-                percent = round((used / total * 100), 2) if total > 0 else 0
-                return {
-                    'total': f"{total}G",
-                    'used': f"{used}G",
-                    'free': f"{free}G",
-                    'percent': f"{percent}%"
-                }
-            except Exception as e:
-                logger.debug(f"Windows ctypes disk detection failed: {e}")
-            # psutil fallback for Windows
-            try:
-                import psutil
-                usage = psutil.disk_usage('C:\\')
-                total = usage.total // (1024 ** 3)
-                used = usage.used // (1024 ** 3)
-                free = usage.free // (1024 ** 3)
-                return {
-                    'total': f"{total}G",
-                    'used': f"{used}G",
-                    'free': f"{free}G",
-                    'percent': f"{usage.percent}%"
-                }
-            except Exception as e:
-                logger.debug(f"Windows psutil disk detection failed: {e}")
-            return {'total': 'Unknown', 'used': 'Unknown', 'free': 'Unknown', 'percent': '0%'}
-
         result = subprocess.run(
             ['df', '-h', '/'],
             capture_output=True,
             text=True,
             timeout=5
         )
+        
         if result.returncode == 0:
             lines = result.stdout.splitlines()
             if len(lines) > 1:
@@ -455,7 +355,9 @@ def get_host_disk_usage() -> Dict[str, Any]:
                         'free': parts[3],
                         'percent': parts[4]
                     }
+        
         return {'total': 'Unknown', 'used': 'Unknown', 'free': 'Unknown', 'percent': '0%'}
+        
     except Exception as e:
         logger.error(f"Error getting disk usage: {e}")
         return {'total': 'Unknown', 'used': 'Unknown', 'free': 'Unknown', 'percent': '0%'}
@@ -463,31 +365,6 @@ def get_host_disk_usage() -> Dict[str, Any]:
 def get_host_uptime() -> str:
     """Get host uptime"""
     try:
-        if platform.system() == 'Windows':
-            try:
-                import ctypes
-                tick_count = ctypes.windll.kernel32.GetTickCount64()
-                uptime_seconds = tick_count / 1000
-                days = int(uptime_seconds // 86400)
-                hours = int((uptime_seconds % 86400) // 3600)
-                minutes = int((uptime_seconds % 3600) // 60)
-                return f"{days}d {hours}h {minutes}m"
-            except Exception as e:
-                logger.debug(f"Windows ctypes uptime detection failed: {e}")
-            # psutil fallback for Windows
-            try:
-                import psutil
-                from datetime import datetime as _dt
-                boot_time = psutil.boot_time()
-                uptime_seconds = (_dt.now() - _dt.fromtimestamp(boot_time)).total_seconds()
-                days = int(uptime_seconds // 86400)
-                hours = int((uptime_seconds % 86400) // 3600)
-                minutes = int((uptime_seconds % 3600) // 60)
-                return f"{days}d {hours}h {minutes}m"
-            except Exception as e:
-                logger.debug(f"Windows psutil uptime detection failed: {e}")
-            return "Unknown"
-
         with open('/proc/uptime', 'r') as f:
             uptime_seconds = float(f.readline().split()[0])
             days = int(uptime_seconds // 86400)
@@ -592,10 +469,10 @@ awk "{
 rm -f /tmp/cpu1 /tmp/cpu2
 '"""
             result = subprocess.run(
-                ["lxc", "exec", container_name, "--", "sh", "-c", simple_script[7:-1]],
+                ["lxc", "exec", container_name, "--"] + simple_script.split(),
                 capture_output=True,
                 text=True,
-                timeout=10
+                timeout=5
             )
             
             if result.returncode == 0:
@@ -811,164 +688,6 @@ def list_containers() -> List[str]:
         logger.error(f"Error listing containers: {e}")
         return []
 
-def container_firewall(container: str, action: str, rule: Optional[Dict] = None) -> Dict[str, Any]:
-    """Manage container firewall rules using UFW inside the container"""
-    try:
-        if action == 'status':
-            result = execute_lxc(f"lxc exec {container} -- ufw status", timeout=10)
-            return {"success": True, "status": result.get("stdout", "unknown")}
-            
-        elif action == 'enable':
-            # Ensure ufw is installed and enabled
-            execute_lxc(f"lxc exec {container} -- apt-get update -y && apt-get install ufw -y", timeout=60)
-            execute_lxc(f"lxc exec {container} -- ufw --force enable", timeout=10)
-            return {"success": True, "message": "Firewall enabled"}
-            
-        elif action == 'disable':
-            execute_lxc(f"lxc exec {container} -- ufw disable", timeout=10)
-            return {"success": True, "message": "Firewall disabled"}
-            
-        elif action == 'add_rule':
-            if not rule: return {"success": False, "error": "No rule provided"}
-            
-            direction = rule.get('direction', 'in')
-            proto = rule.get('protocol', 'tcp')
-            port = rule.get('port_range')
-            act = rule.get('action', 'allow')
-            source = rule.get('source_ip', 'any')
-            
-            # Construct UFW command
-            # ufw allow in on eth0 from 1.2.3.4 to any port 80 proto tcp
-            ufw_cmd = f"ufw {act} {direction} from {source} to any port {port} proto {proto}"
-            result = execute_lxc(f"lxc exec {container} -- {ufw_cmd}", timeout=10)
-            return {"success": result['success'], "message": result.get("stdout", ""), "error": result.get("stderr", "")}
-            
-        elif action == 'delete_rule':
-            if not rule: return {"success": False, "error": "No rule provided"}
-            # Similar to add_rule but with 'delete'
-            direction = rule.get('direction', 'in')
-            proto = rule.get('protocol', 'tcp')
-            port = rule.get('port_range')
-            act = rule.get('action', 'allow')
-            source = rule.get('source_ip', 'any')
-            
-            ufw_cmd = f"ufw delete {act} {direction} from {source} to any port {port} proto {proto}"
-            result = execute_lxc(f"lxc exec {container} -- {ufw_cmd}", timeout=10)
-            return {"success": result['success'], "message": result.get("stdout", ""), "error": result.get("stderr", "")}
-
-        elif action == 'ddos_protect':
-            # Apply a set of rules for basic DDoS protection
-            commands = [
-                "ufw limit ssh",
-                "ufw allow http",
-                "ufw allow https",
-                # Rate limit new connections to common web ports
-                "ufw limit http/tcp",
-                "ufw limit https/tcp",
-                # Prevent ping flood
-                "ufw rule limit icmp any",
-                # Drop invalid packets
-                "ufw route allow in on eth0",
-                "ufw route allow out on eth0",
-                "ufw rule deny in from any to any with invalid_state"
-            ]
-            errors = []
-            for cmd in commands:
-                result = execute_lxc(f"lxc exec {container} -- {cmd}", timeout=15)
-                if not result['success']:
-                    errors.append(result.get('stderr', f'Failed to execute: {cmd}'))
-            
-            if errors:
-                return {"success": False, "error": "\n".join(errors)}
-            return {"success": True, "message": "Basic DDoS protection rules applied."}
-
-        return {"success": False, "error": f"Unknown firewall action: {action}"}
-    except Exception as e:
-        logger.error(f"Firewall error for {container}: {e}")
-        return {"success": False, "error": str(e)}
-
-def container_file_manager(container: str, action: str, path: str, content: Optional[str] = None) -> Dict[str, Any]:
-    """Manage files inside a container"""
-    try:
-        # Sanitize path to prevent directory traversal
-        safe_path = os.path.normpath(os.path.join("/", path.lstrip('/')))
-        if not safe_path.startswith('/'):
-            safe_path = '/' + safe_path
-
-        # The command needs to be correctly quoted for sh -c
-        quoted_path = shlex.quote(safe_path)
-
-        if action == 'list':
-            # Use ls -la to get detailed file info
-            cmd = f"lxc exec {container} -- ls -la --full-time {quoted_path}"
-            result = execute_lxc(cmd, timeout=20)
-            if not result['success']:
-                return {"success": False, "error": result.get('stderr', 'Failed to list files')}
-            
-            files = []
-            for line in result['stdout'].splitlines()[1:]: # Skip total line
-                parts = line.split()
-                if len(parts) < 9:
-                    continue
-                
-                perms = parts[0]
-                is_dir = perms.startswith('d')
-                size = int(parts[4])
-                # Date is in parts 5, 6, 7 (YYYY-MM-DD HH:MM:SS.sssssssss)
-                mtime = f"{parts[5]} {parts[6]}"
-                name = " ".join(parts[8:])
-                
-                files.append({
-                    "name": name,
-                    "path": os.path.join(safe_path, name),
-                    "is_dir": is_dir,
-                    "size": size,
-                    "mtime": mtime,
-                    "perms": perms
-                })
-            return {"success": True, "files": files, "path": safe_path}
-
-        elif action == 'read':
-            cmd = f"lxc exec {container} -- cat {quoted_path}"
-            result = execute_lxc(cmd, timeout=10)
-            if not result['success']:
-                return {"success": False, "error": result.get('stderr', 'Failed to read file')}
-            return {"success": True, "content": result['stdout']}
-
-        elif action == 'write':
-            if content is None:
-                return {"success": False, "error": "Content is required for write action"}
-            
-            # Use a temporary file to handle content with special characters
-            import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp:
-                tmp.write(content)
-                tmp_path = tmp.name
-            
-            try:
-                # Push the file into the container
-                push_cmd = f"lxc file push {tmp_path} {container}{safe_path}"
-                result = execute_lxc(push_cmd, timeout=30)
-                return {"success": result['success'], "error": result.get('stderr')}
-            finally:
-                os.remove(tmp_path)
-
-        elif action == 'delete':
-            cmd = f"lxc exec {container} -- rm -rf {quoted_path}"
-            result = execute_lxc(cmd, timeout=15)
-            return {"success": result['success'], "error": result.get('stderr')}
-
-        elif action == 'create_dir':
-            cmd = f"lxc exec {container} -- mkdir -p {quoted_path}"
-            result = execute_lxc(cmd, timeout=10)
-            return {"success": result['success'], "error": result.get('stderr')}
-
-        return {"success": False, "error": f"Unknown file manager action: {action}"}
-
-    except Exception as e:
-        logger.error(f"File manager error for {container} at {path}: {e}")
-        return {"success": False, "error": str(e)}
-
 def container_action(container: str, action: str, timeout: int = 60) -> Dict[str, Any]:
     """Perform action on container (start/stop/restart) with detailed response"""
     try:
@@ -1048,67 +767,13 @@ def container_action(container: str, action: str, timeout: int = 60) -> Dict[str
             "action": action
         }
 
-def create_container(name: str, os_image: str, ip_config: Optional[Dict] = None) -> Dict[str, Any]:
-    """Create a new LXC container with optional dedicated IP"""
-    try:
-        # Step 1: Launch the container
-        launch_cmd = f"lxc launch {os_image} {name}"
-        result = execute_lxc(launch_cmd, timeout=300) # 5 min timeout for image download
-        if not result['success']:
-            return {"success": False, "error": f"Failed to launch container: {result.get('stderr')}"}
-
-        # Wait for container to get an IP
-        time.sleep(10)
-
-        # Step 2: Configure network if dedicated IP is provided
-        if ip_config and ip_config.get('ip_address'):
-            ip = ip_config['ip_address']
-            gateway = ip_config.get('gateway')
-            
-            # Stop the container to apply network config
-            execute_lxc(f"lxc stop {name} --force", timeout=60)
-            
-            # Set the static IP configuration
-            # This assumes a standard eth0 interface and netplan/systemd-networkd
-            # A more robust solution would detect the network config system
-            net_config_cmd = f"lxc config device override {name} eth0 ipv4.address={ip}"
-            if gateway:
-                # This is a bit tricky as LXD handles gateway via profiles/networks
-                # A common way is to set the gateway on the host bridge or use a routed setup
-                # For a simple static assignment, we often rely on the container's internal config
-                # Let's try to set it inside the container as a fallback
-                pass # Gateway setup is complex, often done at the network level
-
-            result = execute_lxc(net_config_cmd, timeout=30)
-            if not result['success']:
-                # Cleanup failed container
-                execute_lxc(f"lxc delete {name} --force", timeout=60)
-                return {"success": False, "error": f"Failed to set static IP: {result.get('stderr')}"}
-            
-            # Start the container again
-            execute_lxc(f"lxc start {name}", timeout=60)
-            time.sleep(5)
-
-        # Step 3: Final verification
-        status = get_container_status(name)
-        if status != 'running':
-            return {"success": False, "error": f"Container failed to start after creation. Status: {status}"}
-
-        return {"success": True, "container": name, "status": status}
-
-    except Exception as e:
-        logger.error(f"Error creating container {name}: {e}")
-        # Attempt cleanup
-        execute_lxc(f"lxc delete {name} --force", timeout=60)
-        return {"success": False, "error": str(e)}
-
 # API Endpoints
 @app.route('/api/health', methods=['GET'])
 def api_health():
     """Public health check endpoint (no authentication required)"""
     return jsonify({
         "status": "ok",
-        "service": "PVM Node Agent",
+        "service": "HVM Node Agent",
         "version": VERSION,
         "hostname": socket.gethostname(),
         "timestamp": datetime.now().isoformat()
@@ -1116,7 +781,7 @@ def api_health():
 
 @app.route('/api/test-connection', methods=['POST'])
 def api_test_connection():
-    """Test connection from PVM Panel - validates API key and returns node info"""
+    """Test connection from HVM Panel - validates API key and returns node info"""
     try:
         # Get API key from request
         api_key = request.headers.get('X-API-Key') or request.args.get('api_key')
@@ -1320,47 +985,6 @@ def api_get_container_stats():
         logger.error(f"Container stats API error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/container/firewall', methods=['POST'])
-@require_api_key
-def api_container_firewall():
-    """Manage container firewall"""
-    try:
-        data = request.get_json()
-        if not data or 'container' not in data or 'action' not in data:
-            return jsonify({"error": "Missing 'container' or 'action' in request body"}), 400
-        
-        container = data['container']
-        action = data['action']
-        rule = data.get('rule')
-        
-        result = container_firewall(container, action, rule)
-        return jsonify(result), 200 if result["success"] else 500
-        
-    except Exception as e:
-        logger.error(f"Firewall API error: {str(e)}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/api/container/files', methods=['POST'])
-@require_api_key
-def api_container_files():
-    """File manager for a container"""
-    try:
-        data = request.get_json()
-        if not data or 'container' not in data or 'action' not in data or 'path' not in data:
-            return jsonify({"error": "Missing required parameters (container, action, path)"}), 400
-        
-        container = data['container']
-        action = data['action']
-        path = data['path']
-        content = data.get('content')
-        
-        result = container_file_manager(container, action, path, content)
-        return jsonify(result), 200 if result.get("success") else 500
-        
-    except Exception as e:
-        logger.error(f"File manager API error: {str(e)}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
 @app.route('/api/container/list', methods=['GET'])
 @require_api_key
 def api_list_containers():
@@ -1452,27 +1076,6 @@ def api_restart_container():
         
     except Exception as e:
         logger.error(f"Restart container API error: {str(e)}")
-        return jsonify({"success": False, "error": str(e)}), 500
-
-@app.route('/api/container/create', methods=['POST'])
-@require_api_key
-def api_create_container():
-    """Create a new container"""
-    try:
-        data = request.get_json()
-        if not data or 'name' not in data or 'os_image' not in data:
-            return jsonify({"error": "Missing 'name' or 'os_image' in request body"}), 400
-        
-        name = data['name']
-        os_image = data['os_image']
-        ip_config = data.get('ip_config')
-        
-        result = create_container(name, os_image, ip_config)
-        
-        return jsonify(result), 200 if result["success"] else 500
-        
-    except Exception as e:
-        logger.error(f"Create container API error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/info', methods=['GET'])
@@ -1726,7 +1329,7 @@ def api_system_check():
 @app.route('/api/validate', methods=['POST'])
 @require_api_key
 def api_validate_node():
-    """Validate node configuration and capabilities - used by PVM Panel during node setup"""
+    """Validate node configuration and capabilities - used by HVM Panel during node setup"""
     try:
         # Get validation parameters from request
         data = request.get_json() or {}
@@ -2045,7 +1648,7 @@ if __name__ == '__main__':
 
     # Argument parser (overrides .env)
     parser = argparse.ArgumentParser(
-        description=f'PVM Panel Node Agent v{VERSION}',
+        description=f'HVM Panel Node Agent v{VERSION}',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument('--api-key', dest='api_key', help='API Key for authentication (overrides .env)')
@@ -2076,7 +1679,7 @@ if __name__ == '__main__':
 
     # Startup information
     logger.info("=" * 79)
-    logger.info(f"PVM Panel Node Agent v{VERSION}")
+    logger.info(f"HVM Panel Node Agent v{VERSION}")
     logger.info(f"Developer: {DEVELOPER}")
     logger.info("=" * 79)
     logger.info(f"Configuration:")
@@ -2093,23 +1696,23 @@ if __name__ == '__main__':
     lxc_ls_cmd = shutil.which("lxc-ls")
     
     if lxc_cmd:
-        logger.info(f"  [OK] LXC command found: {lxc_cmd}")
+        logger.info(f"  ✓ LXC command found: {lxc_cmd}")
     else:
-        logger.warning("  [X] LXC command not found")
+        logger.warning("  ✗ LXC command not found")
     
     if lxc_ls_cmd:
-        logger.info(f"  [OK] LXC-LS command found: {lxc_ls_cmd}")
+        logger.info(f"  ✓ LXC-LS command found: {lxc_ls_cmd}")
     else:
-        logger.warning("  [X] LXC-LS command not found")
+        logger.warning("  ✗ LXC-LS command not found")
     
     # Check for required tools
     tools = ['free', 'df', 'mpstat', 'top']
     for tool in tools:
         tool_path = shutil.which(tool)
         if tool_path:
-            logger.info(f"  [OK] {tool} found: {tool_path}")
+            logger.info(f"  ✓ {tool} found: {tool_path}")
         else:
-            logger.warning(f"  [X] {tool} not found (optional)")
+            logger.warning(f"  ✗ {tool} not found (optional)")
     
     logger.info("=" * 79)
 

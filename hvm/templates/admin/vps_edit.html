@@ -113,69 +113,6 @@
             </div>
         </div>
 
-        <!-- Port Allocation (shown when changing owner) -->
-        <div style="margin: 1.5rem 0; padding: 1rem; background-color: var(--bg-secondary); border-radius: var(--border-radius-sm); border: 1px solid var(--border-color);">
-            <h4 style="margin-bottom: 1rem;"><i class="fas fa-plug"></i> Port Allocation</h4>
-            <div class="grid grid-2">
-                <div>
-                    <div style="margin-bottom: 0.5rem;">
-                        <span style="color: var(--text-muted);">Current Owner Allocation:</span>
-                        <span style="font-weight: 600;">{{ current_user_used }} / {{ current_user_allocation }} ports used</span>
-                    </div>
-                    <div style="margin-bottom: 0.5rem;">
-                        <span style="color: var(--text-muted);">VPS Port Forwards:</span>
-                        <span style="font-weight: 600;">{{ vps_forwards|length }} ports</span>
-                    </div>
-                </div>
-                <div class="form-group" style="margin: 0;">
-                    <label class="form-label">Additional Ports for New Owner</label>
-                    <input type="number" name="additional_ports" class="form-control" value="0" min="0" max="100" placeholder="0">
-                    <small style="color: var(--text-muted);">Extra ports to allocate if changing owner (in addition to transferred ports)</small>
-                </div>
-            </div>
-            
-            {% if vps_forwards %}
-            <div style="margin-top: 1rem;">
-                <h5 style="margin-bottom: 0.75rem; font-size: 0.875rem; color: var(--text-secondary);">Current Port Forwards (will be transferred to new owner)</h5>
-                <div style="max-height: 200px; overflow-y: auto;">
-                    <table class="table" style="font-size: 0.875rem;">
-                        <thead>
-                            <tr>
-                                <th>VPS Port</th>
-                                <th>Host Port</th>
-                                <th>Protocol</th>
-                                <th>Description</th>
-                                <th>Hits</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for forward in vps_forwards %}
-                            <tr>
-                                <td><span class="badge badge-info">{{ forward.vps_port }}</span></td>
-                                <td><span class="badge badge-success">{{ forward.host_port }}</span></td>
-                                <td>
-                                    {% if 'tcp' in forward.protocol and 'udp' in forward.protocol %}
-                                        <span class="badge badge-info" style="margin-right: 0.25rem;">TCP</span>
-                                        <span class="badge badge-success">UDP</span>
-                                    {% else %}
-                                        <span class="badge">{{ forward.protocol|upper }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ forward.description or '-' }}</td>
-                                <td>{{ forward.hits }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            {% else %}
-            <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-tertiary); border-radius: 8px; text-align: center; color: var(--text-secondary);">
-                <i class="fas fa-info-circle"></i> No port forwards configured for this VPS
-            </div>
-            {% endif %}
-        </div>
-
         <!-- Current Status -->
         <div style="margin: 1.5rem 0; padding: 1rem; background-color: var(--bg-tertiary); border-radius: var(--border-radius-sm);">
             <h4 style="margin-bottom: 1rem;">Current Configuration</h4>

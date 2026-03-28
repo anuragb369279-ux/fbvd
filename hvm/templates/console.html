@@ -3,517 +3,263 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ panel_name }} // NEURAL LINK: {{ vps.container_name }}</title>
-    
-    <!-- Bootstrap 5 -->
+    <title>{{ panel_name }} · VPS Console</title>
+    <!-- Bootstrap 5 Darkly theme (cosmo variation) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Xterm.js -->
+    <!-- Xterm.js for terminal emulation -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-search@0.13.0/lib/xterm-addon-search.min.js"></script>
-    
     <!-- Socket.IO client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-
     <style>
         :root {
-            --bg-darker: #050507;
-            --bg-card: rgba(13, 13, 18, 0.9);
-            --border-glow: rgba(0, 242, 255, 0.3);
-            --accent-primary: #00f2ff;
-            --accent-secondary: #7000ff;
-            --accent-success: #00ff9d;
-            --accent-danger: #ff0055;
-            --text-primary: #e0e0e0;
-            --text-muted: #6b7280;
-            --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --bg-dark: #1a1d21;
+            --bg-darker: #0f1114;
+            --border-color: #2b2f36;
+            --accent-cyan: #0dcaf0;
+            --accent-green: #198754;
+            --text-muted: #9ca3af;
         }
-
         body {
             background-color: var(--bg-darker);
-            color: var(--text-primary);
-            font-family: var(--font-mono);
+            color: #e9ecef;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Courier New', monospace;
             height: 100vh;
             overflow: hidden;
+            padding: 0;
             margin: 0;
             display: flex;
             flex-direction: column;
-            position: relative;
         }
-
-        /* CRT/Scanline Effect */
-        body::after {
-            content: " ";
-            display: block;
-            position: absolute;
-            top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
-                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 2000;
-            background-size: 100% 2px, 3px 100%;
-            pointer-events: none;
-            opacity: 0.1;
-        }
-
-        /* Top Bar */
-        .cyber-header {
-            background: rgba(5, 5, 7, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 2px solid var(--accent-primary);
-            padding: 0.75rem 1.5rem;
+        /* top bar */
+        .console-topbar {
+            background-color: #21252b;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.5rem 1rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            z-index: 100;
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.15);
+            flex-shrink: 0;
+            user-select: none;
         }
-
-        .system-id {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
+        .vps-badge {
+            background: #2c313a;
+            padding: 0.35rem 1rem;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            border-left: 4px solid var(--accent-cyan);
+            font-weight: 500;
         }
-
-        .id-badge {
-            background: rgba(0, 242, 255, 0.1);
-            border: 1px solid var(--accent-primary);
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            font-size: 0.85rem;
-            font-weight: 800;
-            color: var(--accent-primary);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
+        .vps-badge i {
+            color: var(--accent-cyan);
+            margin-right: 6px;
         }
-
-        .id-badge i { font-size: 1rem; }
-
-        .conn-pulse {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            color: var(--text-muted);
-        }
-
-        .pulse-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            box-shadow: 0 0 5px currentColor;
-        }
-
-        .pulse-dot.online { background: var(--accent-success); box-shadow: 0 0 10px var(--accent-success); animation: pulse 2s infinite; }
-        .pulse-dot.error { background: var(--accent-danger); box-shadow: 0 0 10px var(--accent-danger); }
-        .pulse-dot.connecting { background: #ffb800; animation: blink 1s infinite; }
-
-        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.5; } 100% { transform: scale(1); opacity: 1; } }
-        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
-
-        /* Terminal Container */
-        .terminal-mainframe {
-            flex: 1;
-            padding: 1.5rem;
-            position: relative;
-            background: radial-gradient(circle at center, rgba(0, 242, 255, 0.03) 0%, transparent 70%);
-        }
-
-        #terminal {
-            width: 100%;
-            height: 100%;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 1rem;
-            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
-        }
-
-        /* Control Panel (Right Side) */
-        .cyber-actions {
-            display: flex;
-            gap: 1rem;
-        }
-
-        .cyber-btn {
-            background: transparent;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: var(--text-primary);
-            padding: 0.5rem 1.25rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            transition: all 0.3s ease;
+        .conn-status {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            background: #1e2228;
+            padding: 0.2rem 1rem;
+            border-radius: 30px;
         }
-
-        .cyber-btn:hover {
-            background: rgba(0, 242, 255, 0.1);
-            border-color: var(--accent-primary);
-            color: var(--accent-primary);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 242, 255, 0.2);
+        .status-led {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #6c757d;
+            transition: background 0.2s;
         }
-
-        .cyber-btn.danger:hover {
-            background: rgba(255, 0, 85, 0.1);
-            border-color: var(--accent-danger);
-            color: var(--accent-danger);
-            box-shadow: 0 5px 15px rgba(255, 0, 85, 0.2);
+        .status-led.connected {
+            background: #28a745;
+            box-shadow: 0 0 8px #28a74580;
         }
-
-        /* Footer */
-        .cyber-footer {
-            background: rgba(5, 5, 7, 0.95);
-            border-top: 1px solid rgba(255, 255, 255, 0.05);
-            padding: 0.5rem 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.7rem;
+        .status-led.disconnected {
+            background: #dc3545;
+        }
+        .status-led.connecting {
+            background: #ffc107;
+        }
+        .control-buttons .btn {
+            background: #2c313a;
+            border: none;
+            color: #dee2e6;
+            margin-left: 0.3rem;
+            border-radius: 6px;
+            padding: 0.25rem 0.9rem;
+            font-size: 0.85rem;
+            transition: all 0.1s;
+        }
+        .control-buttons .btn:hover {
+            background: #3a404b;
+            color: white;
+        }
+        .control-buttons .btn-exit {
+            background: #a4262c;
+        }
+        .control-buttons .btn-exit:hover {
+            background: #c53030;
+        }
+        /* main terminal area */
+        #terminal-container {
+            flex: 1;
+            background: #0c0e12;
+            padding: 8px 0 0 8px;
+            overflow: hidden;
+        }
+        .xterm {
+            height: 100%;
+            padding: 4px;
+        }
+        .xterm-viewport {
+            overflow-y: auto !important;
+            scrollbar-width: thin;
+            scrollbar-color: #3b3f4a #1e2127;
+        }
+        .xterm-viewport::-webkit-scrollbar {
+            width: 8px;
+        }
+        .xterm-viewport::-webkit-scrollbar-track {
+            background: #1e2127;
+        }
+        .xterm-viewport::-webkit-scrollbar-thumb {
+            background: #3b3f4a;
+            border-radius: 4px;
+        }
+        /* bottom helper bar */
+        .console-footer {
+            background: #1b1f25;
+            border-top: 1px solid var(--border-color);
+            padding: 0.4rem 1rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+            flex-shrink: 0;
         }
-
-        .hotkey-list { display: flex; gap: 2rem; }
-        .hotkey-item kbd {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 0.1rem 0.4rem;
-            border-radius: 3px;
-            color: var(--accent-primary);
-            font-family: inherit;
+        .footer-hint i {
+            width: 18px;
+            color: #6c8a9e;
         }
-
-        /* Login Overlay */
-        .matrix-overlay {
+        /* login overlay (ssh connect) */
+        .ssh-login-overlay {
             position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(5, 5, 7, 0.98);
-            backdrop-filter: blur(10px);
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(10, 12, 16, 0.92);
+            backdrop-filter: blur(3px);
             display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 1500;
-            transition: opacity 0.5s ease;
+            z-index: 2000;
+            transition: opacity 0.2s;
         }
-
-        .login-matrix-card {
-            background: rgba(13, 13, 18, 0.9);
-            border: 2px solid var(--accent-primary);
-            border-radius: 12px;
-            width: 450px;
-            padding: 3rem;
-            box-shadow: 0 0 50px rgba(0, 242, 255, 0.1);
-            position: relative;
+        .ssh-login-card {
+            background: #232731;
+            border-radius: 20px;
+            width: 400px;
+            padding: 2rem;
+            border: 1px solid #3a4050;
+            box-shadow: 0 25px 50px -12px black;
         }
-
-        .login-matrix-card h2 {
-            font-size: 1.5rem;
-            font-weight: 900;
-            letter-spacing: 4px;
-            text-align: center;
-            margin-bottom: 2.5rem;
-            color: var(--accent-primary);
-            text-transform: uppercase;
+        .ssh-login-card h3 {
+            font-weight: 400;
+            margin-bottom: 1.5rem;
+            color: #b2c9e8;
         }
-
-        .matrix-input-group { margin-bottom: 1.5rem; }
-        .matrix-input-group label {
-            display: block;
-            font-size: 0.7rem;
-            font-weight: 800;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 0.5rem;
-            letter-spacing: 2px;
+        .form-control, .input-group-text {
+            background-color: #1a1e27;
+            border: 1px solid #333a47;
+            color: white;
         }
-
-        .matrix-input {
-            width: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
-            padding: 0.85rem 1rem;
-            color: var(--text-primary);
-            font-family: var(--font-mono);
-            font-size: 0.9rem;
-            transition: all 0.3s ease;
+        .form-control:focus {
+            background-color: #222834;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 0.2rem #0dcaf040;
         }
-
-        .matrix-input:focus {
-            outline: none;
-            border-color: var(--accent-primary);
-            box-shadow: 0 0 15px rgba(0, 242, 255, 0.1);
-            background: rgba(0, 0, 0, 0.8);
-        }
-
-        .matrix-btn {
-            width: 100%;
-            background: var(--accent-primary);
-            color: #000;
+        .btn-connect {
+            background: #0d6efd;
             border: none;
-            padding: 1rem;
-            font-weight: 900;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            border-radius: 4px;
+            width: 100%;
+            padding: 0.7rem;
+            font-weight: 500;
+        }
+        .btn-connect:hover {
+            background: #0b5ed7;
+        }
+        .small-note {
+            font-size: 0.8rem;
+            color: #8f9bb3;
             margin-top: 1rem;
-            transition: all 0.3s ease;
+            text-align: center;
         }
-
-        .matrix-btn:hover {
-            background: #fff;
-            box-shadow: 0 0 30px var(--accent-primary);
-            transform: translateY(-3px);
+        /* hidden by default */
+        .d-none {
+            display: none !important;
         }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--bg-darker); }
-        ::-webkit-scrollbar-thumb { background: rgba(0, 242, 255, 0.2); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
     </style>
 </head>
 <body>
 
-    <div id="loginOverlay" class="matrix-overlay">
-        <div class="login-matrix-card">
-            <h2>Neural Interface</h2>
-            <div class="matrix-input-group">
-                <label>Target Host</label>
-                <input type="text" id="sshHost" class="matrix-input" value="{{ vps_ip or '' }}" placeholder="IP_ADDRESS">
+    <!-- SSH connection overlay (visible until connected) -->
+    <div id="sshOverlay" class="ssh-login-overlay">
+        <div class="ssh-login-card">
+            <h3><i class="fa-solid fa-terminal me-2" style="color: #0dcaf0;"></i>Connect to VPS</h3>
+            <div class="mb-3">
+                <label class="form-label">Host / IP</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-network-wired"></i></span>
+                    <input type="text" class="form-control" id="sshHost" placeholder="e.g. 192.168.1.100 or your.vps.com" value="{{ vps_ip or '' }}">
+                </div>
             </div>
-            <div class="matrix-input-group">
-                <label>Protocol Port</label>
-                <input type="number" id="sshPort" class="matrix-input" value="22">
+            <div class="mb-3">
+                <label class="form-label">Port</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-regular fa-plug"></i></span>
+                    <input type="number" class="form-control" id="sshPort" value="22" min="1" max="65535">
+                </div>
             </div>
-            <div class="matrix-input-group">
-                <label>User Identifier</label>
-                <input type="text" id="sshUser" class="matrix-input" value="root">
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-regular fa-user"></i></span>
+                    <input type="text" class="form-control" id="sshUser" value="root">
+                </div>
             </div>
-            <div class="matrix-input-group">
-                <label>Access Credential</label>
-                <input type="password" id="sshPass" class="matrix-input" placeholder="••••••••">
+            <div class="mb-4">
+                <label class="form-label">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+                    <input type="password" class="form-control" id="sshPass" placeholder="••••••••">
+                </div>
             </div>
-            <button class="matrix-btn" id="connectBtn">Establish Link</button>
-            <p style="text-align: center; font-size: 0.65rem; color: var(--text-muted); margin-top: 2rem;">
-                > ENCRYPTION: AES-256-GCM<br>
-                > STATUS: READY FOR UPLINK
-            </p>
+            <button class="btn btn-connect btn-primary" id="connectBtn">
+                <i class="fa-regular fa-paper-plane me-2"></i>Establish SSH session
+            </button>
+            <div class="small-note">
+                <i class="fa-regular fa-circle-info"></i> 
+                Your credentials are sent only to your VPS — we never store them.
+            </div>
         </div>
     </div>
 
-    <header class="cyber-header">
-        <div class="system-id">
-            <div class="id-badge">
-                <i class="fas fa-microchip"></i>
-                {{ vps.container_name }}
+    <!-- Top bar -->
+    <div class="console-topbar">
+        <div class="d-flex align-items-center gap-3">
+            <div class="vps-badge">
+                <i class="fa-solid fa-cube"></i> {{ vps.container_name }}
+                <span class="badge bg-dark ms-2">{{ vps.os_version }}</span>
             </div>
-            <div class="conn-pulse">
-                <span class="pulse-dot" id="statusLed"></span>
-                <span id="statusText">LINK OFFLINE</span>
+            <div class="conn-status" id="connStatus">
+                <span class="status-led" id="statusLed"></span>
+                <span id="statusText">Disconnected</span>
             </div>
         </div>
-
-        <div class="cyber-actions">
-            <button class="cyber-btn" onclick="reconnect()" id="reconnectBtn">
-                <i class="fas fa-sync-alt"></i> SYNC
-            </button>
-            <button class="cyber-btn" onclick="toggleFullscreen()" id="fullBtn">
-                <i class="fas fa-expand"></i> GRID
-            </button>
-            <button class="cyber-btn danger" onclick="closeTerminal()">
-                <i class="fas fa-power-off"></i> TERMINATE
-            </button>
-        </div>
-    </header>
-
-    <main class="terminal-mainframe">
-        <div id="terminal"></div>
-    </main>
-
-    <footer class="cyber-footer">
-        <div class="hotkey-list">
-            <div class="hotkey-item"><kbd>ALT</kbd> + <kbd>C</kbd> Copy</div>
-            <div class="hotkey-item"><kbd>ALT</kbd> + <kbd>V</kbd> Paste</div>
-            <div class="hotkey-item"><kbd>ESC</kbd> Fullscreen</div>
-        </div>
-        <div>{{ panel_name }} // CORE v5.1-PRO-ULTIMATE</div>
-    </footer>
-
-    <script>
-        let socket, term, fitAddon;
-        const vps_id = "{{ vps.id }}";
-
-        document.addEventListener('DOMContentLoaded', function() {
-            // Init Xterm
-            term = new Terminal({
-                cursorBlink: true,
-                fontFamily: 'var(--font-mono)',
-                fontSize: 14,
-                theme: {
-                    background: 'transparent',
-                    foreground: '#e0e0e0',
-                    cursor: '#00f2ff',
-                    selection: 'rgba(0, 242, 255, 0.3)',
-                    black: '#000000',
-                    red: '#ff0055',
-                    green: '#00ff9d',
-                    yellow: '#ffb800',
-                    blue: '#00f2ff',
-                    magenta: '#7000ff',
-                    cyan: '#00f2ff',
-                    white: '#ffffff'
-                },
-                allowTransparency: true,
-                scrollback: 5000
-            });
-
-            fitAddon = new FitAddon.FitAddon();
-            term.loadAddon(fitAddon);
-            term.loadAddon(new WebLinksAddon.WebLinksAddon());
-            term.loadAddon(new SearchAddon.SearchAddon());
-            
-            term.open(document.getElementById('terminal'));
-            fitAddon.fit();
-
-            window.addEventListener('resize', () => {
-                fitAddon.fit();
-                if (socket && socket.connected) {
-                    socket.emit('resize', { 
-                        cols: term.cols, 
-                        rows: term.rows,
-                        vps_id: vps_id 
-                    });
-                }
-            });
-
-            // Connect Logic
-            document.getElementById('connectBtn').addEventListener('click', startSession);
-            document.getElementById('sshPass').addEventListener('keypress', (e) => {
-                if(e.key === 'Enter') startSession();
-            });
-        });
-
-        function startSession() {
-            const host = document.getElementById('sshHost').value;
-            const port = document.getElementById('sshPort').value;
-            const user = document.getElementById('sshUser').value;
-            const pass = document.getElementById('sshPass').value;
-
-            if(!host || !user) return alert('Link parameters incomplete');
-
-            document.getElementById('connectBtn').disabled = true;
-            document.getElementById('connectBtn').innerText = 'ENCRYPTING...';
-            
-            initSocket(host, port, user, pass);
-        }
-
-        function initSocket(host, port, user, pass) {
-            socket = io({
-                query: { vps_id: vps_id }
-            });
-
-            socket.on('connect', () => {
-                updateStatus('connecting', 'LINKING...');
-                socket.emit('start_ssh', {
-                    host, port, user, password: pass,
-                    vps_id: vps_id,
-                    cols: term.cols,
-                    rows: term.rows
-                });
-            });
-
-            socket.on('ssh_output', (data) => {
-                if (data.vps_id == vps_id) {
-                    term.write(data.output);
-                }
-            });
-
-            socket.on('ssh_connected', () => {
-                updateStatus('online', 'LINK STABLE');
-                document.getElementById('loginOverlay').style.opacity = '0';
-                setTimeout(() => {
-                    document.getElementById('loginOverlay').style.display = 'none';
-                    term.focus();
-                }, 500);
-            });
-
-            socket.on('ssh_error', (data) => {
-                alert('Neural error: ' + data.message);
-                updateStatus('error', 'LINK FAILED');
-                document.getElementById('connectBtn').disabled = false;
-                document.getElementById('connectBtn').innerText = 'ESTABLISH LINK';
-            });
-
-            socket.on('disconnect', () => {
-                updateStatus('error', 'LINK SEVERED');
-            });
-
-            term.onData(data => {
-                if (socket && socket.connected) {
-                    socket.emit('ssh_input', { 
-                        vps_id: vps_id, 
-                        input: data 
-                    });
-                }
-            });
-        }
-
-        function updateStatus(type, text) {
-            const led = document.getElementById('statusLed');
-            const txt = document.getElementById('statusText');
-            led.className = 'pulse-dot ' + type;
-            txt.innerText = text;
-        }
-
-        function toggleFullscreen() {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen();
-            } else {
-                if (document.exitFullscreen) document.exitFullscreen();
-            }
-        }
-
-        function closeTerminal() {
-            if(confirm('Terminate neural link?')) {
-                window.location.href = '/vps/' + vps_id;
-            }
-        }
-
-        function reconnect() {
-            window.location.reload();
-        }
-
-        // Hotkeys
-        document.addEventListener('keydown', e => {
-            if(e.altKey && e.key === 'c') {
-                const selection = term.getSelection();
-                if(selection) navigator.clipboard.writeText(selection);
-            }
-            if(e.altKey && e.key === 'v') {
-                navigator.clipboard.readText().then(text => {
-                    socket.emit('ssh_input', { vps_id: vps_id, input: text });
-                });
-            }
-        });
-    </script>
-</body>
-</html>
+        <div class="control-buttons">
+            <button class="btn" id="fullscreenBtn" title="Toggle fullscreen (F11)"><i class="fa-regular fa-window-maximize"></i></button>
             <button class="btn" id="reconnectBtn" title="Reconnect"><i class="fa-solid fa-rotate-right"></i></button>
             <button class="btn btn-exit" id="exitBtn" title="Exit console"><i class="fa-regular fa-circle-xmark"></i> Exit</button>
         </div>
@@ -588,7 +334,6 @@
             // State
             let connected = false;
             let connecting = false;
-            let connectionInfo = null;
 
             // --- helper: update status UI ---
             function setStatus(state, msg) {
@@ -615,76 +360,12 @@
             // Initially open terminal (blank, but UI ready)
             openTerminal();
 
-            // --- Auto-fetch connection details on load ---
-            async function fetchConnectionDetails() {
-                try {
-                    setStatus('connecting', 'Preparing connection...');
-                    term.writeln('\x1b[36m[ Fetching SSH connection details... ]\x1b[0m\r\n');
-                    
-                    const response = await fetch(`/vps/${vpsId}/console/connect`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        connectionInfo = data.connection;
-                        
-                        // Auto-fill the form
-                        sshHost.value = connectionInfo.host;
-                        sshPort.value = connectionInfo.port;
-                        sshUser.value = connectionInfo.username;
-                        sshPass.value = connectionInfo.password;
-                        
-                        term.writeln('\x1b[32m✓ Connection details retrieved\x1b[0m');
-                        if (data.port_created) {
-                            term.writeln('\x1b[33m✓ SSH port forward created automatically\x1b[0m');
-                        }
-                        term.writeln('\x1b[36m✓ Password retrieved from VPS\x1b[0m');
-                        term.writeln('\r\n\x1b[1mReady to connect!\x1b[0m\r\n');
-                        
-                        setStatus('disconnected', 'Ready to connect');
-                        
-                        // Auto-connect after 1 second
-                        setTimeout(() => {
-                            if (!connected && !connecting) {
-                                term.writeln('\x1b[36m[ Auto-connecting in 3 seconds... Press any key to cancel ]\x1b[0m\r\n');
-                                let autoConnectTimer = setTimeout(() => {
-                                    initiateConnection();
-                                }, 3000);
-                                
-                                // Cancel auto-connect if user presses any key
-                                const cancelAutoConnect = () => {
-                                    clearTimeout(autoConnectTimer);
-                                    term.writeln('\x1b[33m[ Auto-connect cancelled ]\x1b[0m\r\n');
-                                    term.off('key', cancelAutoConnect);
-                                };
-                                term.on('key', cancelAutoConnect);
-                            }
-                        }, 1000);
-                        
-                    } else {
-                        term.writeln('\x1b[31m✗ Failed to get connection details: ' + data.error + '\x1b[0m\r\n');
-                        term.writeln('\x1b[33mPlease enter connection details manually.\x1b[0m\r\n');
-                        setStatus('disconnected', 'Manual setup required');
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch connection details:', error);
-                    term.writeln('\x1b[31m✗ Error: ' + error.message + '\x1b[0m\r\n');
-                    term.writeln('\x1b[33mPlease enter connection details manually.\x1b[0m\r\n');
-                    setStatus('disconnected', 'Manual setup required');
-                }
-            }
-
-            // Call on page load
-            fetchConnectionDetails();
-
             // --- socket event handlers ---
             socket.on('connect', () => {
                 console.log('Socket.io connected');
+                if (!connected && !connecting) {
+                    // we show overlay anyway, nothing changes
+                }
             });
 
             socket.on('ssh_connected', (data) => {
@@ -694,13 +375,11 @@
                 overlay.classList.add('d-none');
                 setStatus('connected', `SSH ${data.username}@${data.host}:${data.port}`);
                 term.clear();
-                term.writeln('\x1b[1;32m╔═══════════════════════════════════════════════════════════╗\x1b[0m');
-                term.writeln('\x1b[1;32m║           Connected to ' + '{{ vps.container_name }}'.padEnd(32) + '║\x1b[0m');
-                term.writeln('\x1b[1;32m╚═══════════════════════════════════════════════════════════╝\x1b[0m\r\n');
                 term.focus();
             });
 
             socket.on('ssh_output', (data) => {
+                // data is raw string (terminal output)
                 term.write(data);
             });
 
@@ -710,11 +389,8 @@
                 connected = false;
                 setStatus('disconnected', 'Error');
                 overlay.classList.remove('d-none');
-                term.writeln('\r\n\x1b[1;31m╔═══════════════════════════════════════════════════════════╗\x1b[0m');
-                term.writeln('\x1b[1;31m║                    SSH CONNECTION ERROR                    ║\x1b[0m');
-                term.writeln('\x1b[1;31m╚═══════════════════════════════════════════════════════════╝\x1b[0m');
-                term.writeln('\r\n\x1b[31m' + (err.error || 'Connection failed') + '\x1b[0m');
-                term.writeln('\r\n\x1b[33mPlease check credentials and try again.\x1b[0m\r\n');
+                term.writeln('\r\n\x1b[1;31m[ SSH ERROR ]\x1b[0m ' + (err.error || 'connection failed'));
+                term.writeln('\r\nPlease check credentials and try again.\r\n');
             });
 
             socket.on('ssh_disconnected', () => {
@@ -723,9 +399,7 @@
                 connecting = false;
                 setStatus('disconnected', 'Disconnected');
                 overlay.classList.remove('d-none');
-                term.writeln('\r\n\x1b[33m╔═══════════════════════════════════════════════════════════╗\x1b[0m');
-                term.writeln('\x1b[33m║                   Session Terminated                       ║\x1b[0m');
-                term.writeln('\x1b[33m╚═══════════════════════════════════════════════════════════╝\x1b[0m\r\n');
+                term.writeln('\r\n\x1b[33m[ Session terminated ]\x1b[0m\r\n');
             });
 
             socket.on('disconnect', () => {
@@ -763,13 +437,11 @@
                 connecting = true;
                 connected = false;
                 setStatus('connecting', 'SSH handshake');
-                overlay.classList.add('d-none');
+                overlay.classList.add('d-none');   // hide overlay during attempt (shows status)
 
+                // Clear any previous partial output
                 term.clear();
-                term.writeln('\x1b[36m╔═══════════════════════════════════════════════════════════╗\x1b[0m');
-                term.writeln('\x1b[36m║              Establishing SSH Connection...                ║\x1b[0m');
-                term.writeln('\x1b[36m╚═══════════════════════════════════════════════════════════╝\x1b[0m');
-                term.writeln('\r\n\x1b[36mConnecting to ' + user + '@' + host + ':' + port + ' ...\x1b[0m\r\n');
+                term.writeln('\x1b[36m[ Connecting to ' + user + '@' + host + ':' + port + ' ... ]\x1b[0m\r\n');
 
                 socket.emit('ssh_connect', {
                     vps_id: vpsId,
@@ -782,6 +454,7 @@
 
             connectBtn.addEventListener('click', initiateConnection);
 
+            // reconnect button = show overlay and reset status
             reconnectBtn.addEventListener('click', () => {
                 if (connected) {
                     socket.emit('ssh_disconnect', { vps_id: vpsId });
@@ -791,9 +464,9 @@
                 overlay.classList.remove('d-none');
                 setStatus('disconnected', 'Ready');
                 term.clear();
-                fetchConnectionDetails();
             });
 
+            // exit console = redirect back to VPS detail
             exitBtn.addEventListener('click', () => {
                 if (connected) {
                     socket.emit('ssh_disconnect', { vps_id: vpsId });
@@ -801,6 +474,7 @@
                 window.location.href = `/vps/${vpsId}`;
             });
 
+            // fullscreen toggle
             fullscreenBtn.addEventListener('click', () => {
                 if (!document.fullscreenElement) {
                     document.documentElement.requestFullscreen();
@@ -811,10 +485,12 @@
                 }
             });
 
+            // resize terminal on window resize
             window.addEventListener('resize', () => {
                 if (term && fitAddon) {
                     fitAddon.fit();
                     if (connected) {
+                        // send new terminal size to server (pty resize)
                         const dims = fitAddon.proposeDimensions();
                         if (dims) {
                             socket.emit('ssh_resize', {
@@ -827,11 +503,13 @@
                 }
             });
 
+            // handle F11 for fullscreen (prevent default)
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'F11') {
                     e.preventDefault();
                     fullscreenBtn.click();
                 }
+                // Ctrl+Shift+V paste (simple)
                 if (e.ctrlKey && e.shiftKey && e.key === 'V') {
                     e.preventDefault();
                     navigator.clipboard.readText().then(text => {
@@ -842,6 +520,14 @@
                 }
             });
 
+            // prevent back/forward mouse buttons
+            window.addEventListener('popstate', (e) => {
+                if (connected) {
+                    e.preventDefault();
+                }
+            });
+
+            // if user hits enter on password field
             sshPass.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -849,13 +535,34 @@
                 }
             });
 
-            setStatus('disconnected', 'Initializing...');
+            // prefill host if vps_ip was passed from backend (e.g. {{ vps_ip|safe }})
+            // but we already set value via template variable
+            // final fallback: if vps has ip_address in db, template already injected
 
+            // on disconnect while overlay visible, ensure status led
+            setStatus('disconnected', 'Awaiting connection');
+
+            // attempt to prefill with vps_ip, but if empty, maybe use node's display ip?
+            // we already did value="{{ vps_ip or '' }}" in input, fine.
+
+            // optional: reconnect if socket reconnects while overlay not active? we keep overlay as gatekeeper.
+
+            // handle ctrl+c properly in terminal (just send)
+            // no extra actions needed
+
+            // additional: close ssh if user navigates away
             window.addEventListener('beforeunload', () => {
                 if (connected) {
                     socket.emit('ssh_disconnect', { vps_id: vpsId });
                 }
             });
+
+            // Manual focus to host input if overlay visible
+            if (!overlay.classList.contains('d-none')) {
+                sshHost.focus();
+            }
+
+            // Prevent accidental touch events bubbling
         })();
     </script>
 

@@ -17,6 +17,9 @@
             <a href="{{ url_for('admin_node_edit', node_id=node.id) }}" class="btn btn-primary">
                 <i class="fas fa-edit"></i> Edit
             </a>
+            <button class="btn btn-danger" onclick="deleteNode()">
+                <i class="fas fa-trash"></i> Delete Node
+            </button>
         </div>
     </div>
 
@@ -264,15 +267,9 @@
                             <code>{{ vps.container_name }}</code>
                         </td>
                         <td>
-                            {% if vps.suspended %}
-                            <span class="badge danger">Suspended</span>
-                            {% elif vps.live_status == 'running' %}
-                            <span class="badge success">Running</span>
-                            {% elif vps.live_status == 'stopped' %}
-                            <span class="badge danger">Stopped</span>
-                            {% else %}
-                            <span class="badge warning">{{ vps.live_status|title }}</span>
-                            {% endif %}
+                            <span class="badge {% if vps.status == 'running' %}success{% elif vps.status == 'stopped' %}danger{% else %}warning{% endif %}">
+                                {{ vps.status }}
+                            </span>
                         </td>
                         <td>
                             <span class="badge info">{{ vps.cpu }} CPU</span>
@@ -298,4 +295,159 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+async function deleteNode() {
+    const nodeId = {{ node.id }};
+    const nodeName = "{{ node.name }}";
+    const vpsCount = {{ vps_count }};
+    const isLocal = {{ 'true' if node.is_local else 'false' }};
+    
+    // First confirmation
+    let message = `Are you sure you want to delete node "${nodeName}"?`;
+    if (isLocal) {
+        message += '\n\n⚠️ WARNING: This is the LOCAL node!';
+    }
+    if (vpsCount > 0) {
+        message += `\n\nThis node has ${vpsCount} VPS container(s).`;
+    }
+    
+    if (!confirm(message)) {
+        return;
+    }
+    
+    // If node has VPS, ask about force delete
+    let force = false;
+    if (vpsCount > 0) {
+        const forceConfirm = confirm(
+            `Do you want to FORCE DELETE all ${vpsCount} VPS containers on this node?\n\n` +
+            `⚠️ WARNING: This will permanently delete all VPS and their data!\n\n` +
+            `Click OK to force delete, or Cancel to abort.`
+        );
+        
+        if (!forceConfirm) {
+            showNotification('Delete cancelled. Node has VPS containers.', 'info');
+            return;
+        }
+        force = true;
+    }
+    
+    // Final confirmation for local node
+    if (isLocal) {
+        const finalConfirm = confirm(
+            '⚠️ FINAL WARNING ⚠️\n\n' +
+            'You are about to delete the LOCAL node!\n' +
+            'This may affect system functionality.\n\n' +
+            'Type "DELETE" in the next prompt to confirm.'
+        );
+        
+        if (!finalConfirm) {
+            return;
+        }
+        
+        const typeConfirm = prompt('Type "DELETE" to confirm deletion of local node:');
+        if (typeConfirm !== 'DELETE') {
+            showNotification('Delete cancelled. Confirmation text did not match.', 'error');
+            return;
+        }
+    }
+    
+    // Show loading state
+    const deleteBtn = event.target.closest('button');
+    const originalHtml = deleteBtn.innerHTML;
+    deleteBtn.disabled = true;
+    deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    
+    try {
+        const response = await fetch(`/admin/nodes/${nodeId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ force: force })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Node deleted successfully', 'success');
+            setTimeout(() => {
+                window.location.href = '/admin/nodes';
+            }, 1000);
+        } else {
+            showNotification(data.error || 'Failed to delete node', 'error');
+            deleteBtn.disabled = false;
+            deleteBtn.innerHTML = originalHtml;
+        }
+    } catch (error) {
+        console.error('Error deleting node:', error);
+        showNotification('Error deleting node: ' + error.message, 'error');
+        deleteBtn.disabled = false;
+        deleteBtn.innerHTML = originalHtml;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        background: var(--bg-secondary);
+        border-left: 4px solid var(--accent-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'});
+        border-radius: var(--border-radius);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 10000;
+        max-width: 400px;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    notification.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}" 
+               style="color: var(--accent-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'}); font-size: 1.25rem;"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => notification.remove(), 300);
+    }, 5000);
+}
+
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
+
 {% endblock %}

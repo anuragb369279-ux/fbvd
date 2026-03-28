@@ -20,7 +20,7 @@
     <h2 style="font-size: 1.25rem; margin: 0;">Log Viewer</h2>
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
         <select class="form-control" id="logType" style="width: 150px;" onchange="changeLogType()">
-            <option value="hvm" {% if current_log == 'hvm' %}selected{% endif %}>PVM Panel</option>
+            <option value="hvm" {% if current_log == 'hvm' %}selected{% endif %}>HVM Panel</option>
             <option value="lxc" {% if current_log == 'lxc' %}selected{% endif %}>LXC</option>
             <option value="system" {% if current_log == 'system' %}selected{% endif %}>System</option>
             <option value="auth" {% if current_log == 'auth' %}selected{% endif %}>Auth</option>
@@ -244,8 +244,7 @@ function loadLogs() {
             currentLogs = data.logs;
             
             // Update stats
-            const fileName = data.file.split(/[\\\/]/).pop();
-            document.getElementById('logFileName').textContent = fileName;
+            document.getElementById('logFileName').textContent = data.file.split('/').pop();
             document.getElementById('logFileSize').textContent = formatBytes(data.size);
             document.getElementById('logLinesShown').textContent = `${data.lines_shown} / ${data.lines_total}`;
             document.getElementById('logTimestamp').textContent = new Date().toLocaleTimeString();
